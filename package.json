@@ -7,11 +7,22 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "exp:basic": "tsx experiments/01-basic-connection.ts",
+    "exp:memory": "tsx experiments/02-memory-management.ts",
+    "exp:analogy": "tsx experiments/03-analogy-prompt.ts"
   },
   "dependencies": {
+    "@langchain/core": "^1.1.32",
+    "@langchain/langgraph": "^1.2.2",
+    "@langchain/openai": "^1.2.13",
+    "langchain": "^1.2.32",
     "nuxt": "^4.4.2",
     "vue": "^3.5.30",
     "vue-router": "^5.0.3"
+  },
+  "devDependencies": {
+    "dotenv": "^17.3.1",
+    "tsx": "^4.21.0"
   }
 }

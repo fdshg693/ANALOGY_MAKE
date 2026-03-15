@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(xargs ls:*)",
-      "Bash(pkill -f \"nuxt dev\")"
+      "Bash(pkill -f \"nuxt dev\")",
+      "WebFetch(domain:js.langchain.com)",
+      "WebSearch",
+      "WebFetch(domain:docs.langchain.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:v03.api.js.langchain.com)",
+      "Bash(xargs grep:*)",
+      "Bash(pnpm exp:basic)",
+      "Bash(pnpm exp:memory)",
+      "Bash(pnpm exp:analogy)"
     ]
   }
 }

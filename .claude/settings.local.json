@@ -17,7 +17,9 @@
       "Bash(npm ls:*)",
       "Bash(xargs cat:*)",
       "Bash(git -C /c/CodeRoot/ANALOGY_MAKE status --short)",
-      "Bash(wc -l /c/CodeRoot/ANALOGY_MAKE/server/utils/*.ts)"
+      "Bash(wc -l /c/CodeRoot/ANALOGY_MAKE/server/utils/*.ts)",
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(ls -1d docs/ver*/)"
     ]
   }
 }

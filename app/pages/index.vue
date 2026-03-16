@@ -2,6 +2,7 @@
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  isError?: boolean
 }
 
 const messages = ref<Message[]>([])
@@ -34,6 +35,7 @@ async function sendMessage(input: string) {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let streamDone = false
 
     while (true) {
       const { done, value } = await reader.read()
@@ -61,17 +63,42 @@ async function sendMessage(input: string) {
           const parsed = JSON.parse(data)
           assistantMessage.content += parsed.content
         }
+
+        if (eventType === 'done') {
+          streamDone = true
+          break
+        }
+
+        if (eventType === 'error' && data) {
+          const parsed = JSON.parse(data)
+          const errorText = `\n\n⚠ エラーが発生しました: ${parsed.message}`
+          if (assistantMessage.content) {
+            assistantMessage.content += errorText
+          } else {
+            assistantMessage.content = errorText.trimStart()
+          }
+          assistantMessage.isError = true
+          streamDone = true
+          break
+        }
       }
+
+      if (streamDone) break
     }
 
-    if (!assistantMessage.content) {
+    if (!assistantMessage.content && !assistantMessage.isError) {
       assistantMessage.content = '（応答を取得できませんでした）'
     }
   } catch (error) {
     console.error('Chat error:', error)
-    const lastMsg = messages.value[messages.value.length - 1]
-    if (lastMsg?.role === 'assistant' && !lastMsg.content) {
-      messages.value.pop()
+    if (!assistantMessage.isError) {
+      const errorText = '\n\n⚠ 通信エラーが発生しました。もう一度お試しください。'
+      if (assistantMessage.content) {
+        assistantMessage.content += errorText
+      } else {
+        assistantMessage.content = errorText.trimStart()
+      }
+      assistantMessage.isError = true
     }
   } finally {
     isLoading.value = false
@@ -106,6 +133,7 @@ watch(
         :key="i"
         :role="msg.role"
         :content="msg.content"
+        :is-error="msg.isError"
       />
       <div v-if="isLoading && !isStreaming" class="loading-indicator">
         考え中...

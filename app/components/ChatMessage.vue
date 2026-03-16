@@ -2,11 +2,12 @@
 defineProps<{
   role: 'user' | 'assistant'
   content: string
+  isError?: boolean
 }>()
 </script>
 
 <template>
-  <div class="chat-message" :class="role">
+  <div class="chat-message" :class="[role, { error: isError }]">
     <span class="role-label">{{ role === 'user' ? 'You' : 'AI' }}</span>
     <div class="message-content">{{ content }}</div>
   </div>
@@ -32,6 +33,12 @@ defineProps<{
   align-self: flex-start;
   background-color: #f3f4f6;
   color: #1f2937;
+}
+
+.chat-message.error {
+  background-color: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
 }
 
 .role-label {

@@ -22,6 +22,7 @@
 - `app/` — フロントエンド（Vue コンポーネント、ページ）
 - `server/` — バックエンド（API Routes、ユーティリティ）
 - `experiments/` — 実験スクリプト（tsx で実行）
+- `ISSUES/` — 課題管理（優先度別: `high/`, `low/`）
 - `docs/` — ドキュメント（バージョン別管理）
   - `MASTER_PLAN.md` — 概要設計
   - `DEV_NOTES.md` — 開発メモ

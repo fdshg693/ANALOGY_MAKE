@@ -1,3 +1,6 @@
+import { createEventStream } from 'h3'
+import { AIMessageChunk } from '@langchain/core/messages'
+
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
 
@@ -9,18 +12,45 @@ export default defineEventHandler(async (event) => {
   }
 
   const agent = getAnalogyAgent()
+  const eventStream = createEventStream(event)
 
-  const result = await agent.invoke(
-    { messages: [{ role: "user", content: body.message }] },
-    { configurable: { thread_id: body.threadId } },
-  )
+  void (async () => {
+    try {
+      const stream = await agent.stream(
+        { messages: [{ role: "user", content: body.message }] },
+        {
+          configurable: { thread_id: body.threadId },
+          streamMode: "messages",
+        },
+      )
 
-  const lastMessage = result.messages[result.messages.length - 1]
+      for await (const [chunk, _metadata] of stream) {
+        if (chunk instanceof AIMessageChunk && typeof chunk.content === 'string' && chunk.content) {
+          await eventStream.push({
+            event: 'token',
+            data: JSON.stringify({ content: chunk.content }),
+          })
+        }
+      }
 
-  return {
-    message: {
-      role: 'assistant' as const,
-      content: lastMessage.content as string,
-    },
-  }
+      await eventStream.push({
+        event: 'done',
+        data: '{}',
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      await eventStream.push({
+        event: 'error',
+        data: JSON.stringify({ message }),
+      })
+    } finally {
+      await eventStream.close()
+    }
+  })()
+
+  eventStream.onClosed(async () => {
+    await eventStream.close()
+  })
+
+  return eventStream.send()
 })

@@ -24,7 +24,7 @@ user-invocable: true
 2. 最新バージョンの `REFACTOR.md` と `IMPLEMENT.md` と `MEMO.md` を参照して、今回行われた変更を把握する
    - 詳しい調査が必要な場合は、サブエージェントを活用して、必要な情報を収集する
 
-3. 最新バージョンの `CURRENT.md` を作成する
+3. 最新バージョンの `CURRENT.md` を作成または修正する
 
 ### CURRENT.md の記載ルール
 

@@ -6,6 +6,7 @@ interface Message {
 
 const messages = ref<Message[]>([])
 const isLoading = ref(false)
+const isStreaming = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadId = ref(crypto.randomUUID())
 
@@ -14,22 +15,76 @@ async function sendMessage(input: string) {
 
   messages.value.push({ role: 'user', content: input })
   isLoading.value = true
+  isStreaming.value = false
+
+  const assistantMessage: Message = { role: 'assistant', content: '' }
+  messages.value.push(assistantMessage)
 
   try {
-    const data = await $fetch('/api/chat', {
+    const response = await fetch('/api/chat', {
       method: 'POST',
-      body: { message: input, threadId: threadId.value },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: input, threadId: threadId.value }),
     })
-    messages.value.push(data.message)
+
+    if (!response.ok || !response.body) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      const events = buffer.split('\n\n')
+      buffer = events.pop()!
+
+      for (const eventStr of events) {
+        if (!eventStr.trim()) continue
+
+        const lines = eventStr.split('\n')
+        let eventType = ''
+        let data = ''
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) eventType = line.slice(7)
+          if (line.startsWith('data: ')) data = line.slice(6)
+        }
+
+        if (eventType === 'token' && data) {
+          if (!isStreaming.value) isStreaming.value = true
+          const parsed = JSON.parse(data)
+          assistantMessage.content += parsed.content
+        }
+      }
+    }
+
+    if (!assistantMessage.content) {
+      assistantMessage.content = '（応答を取得できませんでした）'
+    }
   } catch (error) {
     console.error('Chat error:', error)
+    const lastMsg = messages.value[messages.value.length - 1]
+    if (lastMsg?.role === 'assistant' && !lastMsg.content) {
+      messages.value.pop()
+    }
   } finally {
     isLoading.value = false
+    isStreaming.value = false
   }
 }
 
 watch(
-  () => messages.value.length,
+  () => {
+    const len = messages.value.length
+    const last = messages.value[len - 1]
+    return `${len}:${last?.content.length ?? 0}`
+  },
   async () => {
     await nextTick()
     if (messagesContainer.value) {
@@ -52,7 +107,7 @@ watch(
         :role="msg.role"
         :content="msg.content"
       />
-      <div v-if="isLoading" class="loading-indicator">
+      <div v-if="isLoading && !isStreaming" class="loading-indicator">
         考え中...
       </div>
     </main>

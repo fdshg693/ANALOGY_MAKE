@@ -1,21 +1,26 @@
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
 
-  if (!body.messages?.length) {
-    throw createError({ statusCode: 400, statusMessage: 'messages is required' })
+  if (!body.message || typeof body.message !== 'string') {
+    throw createError({ statusCode: 400, statusMessage: 'message is required' })
+  }
+  if (!body.threadId || typeof body.threadId !== 'string') {
+    throw createError({ statusCode: 400, statusMessage: 'threadId is required' })
   }
 
-  const lastMessage = body.messages[body.messages.length - 1]
+  const agent = getAnalogyAgent()
 
-  if (lastMessage.role !== 'user') {
-    throw createError({ statusCode: 400, statusMessage: 'Last message must be from user' })
-  }
+  const result = await agent.invoke(
+    { messages: [{ role: "user", content: body.message }] },
+    { configurable: { thread_id: body.threadId } },
+  )
 
-  // モック応答（後続タスクでLangChain連携に差し替え）
+  const lastMessage = result.messages[result.messages.length - 1]
+
   return {
     message: {
       role: 'assistant' as const,
-      content: `「${lastMessage.content}」を受け取りました。\n\nこれはモック応答です。後続タスクでAIによるアナロジー思考に置き換わります。`,
+      content: lastMessage.content as string,
     },
   }
 })

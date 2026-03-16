@@ -11,7 +11,13 @@
       "Bash(xargs grep:*)",
       "Bash(pnpm exp:basic)",
       "Bash(pnpm exp:memory)",
-      "Bash(pnpm exp:analogy)"
+      "Bash(pnpm exp:analogy)",
+      "Bash(npx nuxi:*)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(npm ls:*)",
+      "Bash(xargs cat:*)",
+      "Bash(git -C /c/CodeRoot/ANALOGY_MAKE status --short)",
+      "Bash(wc -l /c/CodeRoot/ANALOGY_MAKE/server/utils/*.ts)"
     ]
   }
 }

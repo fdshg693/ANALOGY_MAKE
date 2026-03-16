@@ -7,6 +7,7 @@ interface Message {
 const messages = ref<Message[]>([])
 const isLoading = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
+const threadId = ref(crypto.randomUUID())
 
 async function sendMessage(input: string) {
   if (!input) return
@@ -17,7 +18,7 @@ async function sendMessage(input: string) {
   try {
     const data = await $fetch('/api/chat', {
       method: 'POST',
-      body: { messages: messages.value },
+      body: { message: input, threadId: threadId.value },
     })
     messages.value.push(data.message)
   } catch (error) {

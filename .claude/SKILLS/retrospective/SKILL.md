@@ -21,9 +21,10 @@ user-invocable: true
 - 最新バージョン番号: !`ls -1d docs/ver*/ 2>/dev/null | sed 's|.*/ver||;s|/||' | sort -n | tail -1`
 - 最新のバージョン作成の結果が `docs/ver{最新バージョン番号}/` に記載されている
 
-以下のような流れで実装した
+各バージョンは以下の5ステップで作成される。本スキルはステップ5に相当する:
 
-1. `ROUGH_PLAN.md` を作成して、今回のバージョンで対応する内容を整理した
-2. `REFACTOR.md` ・ `IMPLEMENT.md` を作成して、実装の詳細を記載した
-3. `MEMO.md` を作成して細かい改善メモを記載・修正を行った
-4. `CURRENT.md` ・ `CLAUDE.md` の作成・更新を行った
+1. `/split_plan` — `ROUGH_PLAN.md` ・ `REFACTOR.md` ・ `IMPLEMENT.md` を作成して、計画を立てた
+2. `/imple_plan` — 計画に基づいて実装し、`MEMO.md` に実装メモを記載した
+3. `/wrap_up` — `MEMO.md` の各項目に対応し、細かい改善を行った
+4. `/write_current` — `CURRENT.md` ・ `CLAUDE.md` の作成・更新を行った
+5. `/retrospective` — **（本ステップ）** 振り返りを行い、次バージョンへの改善点を整理する

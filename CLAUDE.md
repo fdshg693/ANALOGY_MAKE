@@ -21,6 +21,7 @@
 ## ディレクトリ構成
 
 - `app/` — フロントエンド（Vue コンポーネント、ページ）
+  - `composables/` — Composables（状態管理・ロジック）
 - `server/` — バックエンド（API Routes、ユーティリティ）
 - `tests/` — 自動テスト（Vitest）
 - `experiments/` — 実験スクリプト（tsx で実行）

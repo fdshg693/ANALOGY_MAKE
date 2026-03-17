@@ -1,10 +1,12 @@
 <script setup lang="ts">
 defineProps<{
   disabled: boolean
+  isStreaming: boolean
 }>()
 
 const emit = defineEmits<{
   send: [content: string]
+  abort: []
 }>()
 
 const input = ref('')
@@ -24,7 +26,10 @@ function handleSubmit() {
       placeholder="メッセージを入力..."
       :disabled="disabled"
     />
-    <button type="submit" :disabled="disabled || !input.trim()">
+    <button v-if="isStreaming" type="button" class="stop-button" @click="emit('abort')">
+      停止
+    </button>
+    <button v-else type="submit" :disabled="disabled || !input.trim()">
       送信
     </button>
   </form>
@@ -66,5 +71,15 @@ function handleSubmit() {
 .chat-input button:disabled {
   background-color: #9ca3af;
   cursor: not-allowed;
+}
+
+.chat-input .stop-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
 }
 </style>

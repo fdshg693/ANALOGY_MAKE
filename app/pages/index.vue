@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useChat } from '~/composables/useChat'
 
-const { messages, isLoading, isStreaming, sendMessage } = useChat()
+const { messages, isLoading, isStreaming, sendMessage, abort } = useChat()
 const messagesContainer = ref<HTMLElement | null>(null)
 
 watch(
@@ -38,7 +38,12 @@ watch(
       </div>
     </main>
 
-    <ChatInput :disabled="isLoading" @send="sendMessage" />
+    <ChatInput
+      :disabled="isLoading"
+      :is-streaming="isStreaming"
+      @send="sendMessage"
+      @abort="abort"
+    />
   </div>
 </template>
 

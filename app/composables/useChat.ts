@@ -11,6 +11,7 @@ export function useChat() {
   const isLoading = ref(false)
   const isStreaming = ref(false)
   const threadId = ref(crypto.randomUUID())
+  let abortController: AbortController | null = null
 
   async function sendMessage(input: string): Promise<void> {
     if (!input) return
@@ -23,10 +24,13 @@ export function useChat() {
     messages.value.push(assistantMessage)
 
     try {
+      abortController = new AbortController()
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: input, threadId: threadId.value }),
+        signal: abortController.signal,
       })
 
       if (!response.ok || !response.body) {
@@ -59,6 +63,9 @@ export function useChat() {
         assistantMessage.content = '（応答を取得できませんでした）'
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
       console.error('Chat error:', error)
       if (!assistantMessage.isError) {
         const errorText = '\n\n⚠ 通信エラーが発生しました。もう一度お試しください。'
@@ -75,5 +82,9 @@ export function useChat() {
     }
   }
 
-  return { messages, isLoading, isStreaming, threadId, sendMessage }
+  function abort(): void {
+    abortController?.abort()
+  }
+
+  return { messages, isLoading, isStreaming, threadId, sendMessage, abort }
 }

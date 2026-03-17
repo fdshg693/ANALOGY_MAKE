@@ -10,7 +10,9 @@
     "postinstall": "nuxt prepare",
     "exp:basic": "tsx experiments/01-basic-connection.ts",
     "exp:memory": "tsx experiments/02-memory-management.ts",
-    "exp:analogy": "tsx experiments/03-analogy-prompt.ts"
+    "exp:analogy": "tsx experiments/03-analogy-prompt.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@langchain/core": "^1.1.32",
@@ -25,6 +27,8 @@
   },
   "devDependencies": {
     "dotenv": "^17.3.1",
-    "tsx": "^4.21.0"
+    "happy-dom": "^20.8.4",
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.0"
   }
 }

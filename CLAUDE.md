@@ -15,14 +15,17 @@
 | バックエンド | Nuxt Server API Routes |
 | AI連携 | LangChain.js + OpenAI API (gpt-4.1-mini, temperature 0.7) |
 | メモリ | LangGraph MemorySaver（インメモリ、再起動でリセット） |
+| テスト | Vitest 4（happy-dom 導入済み、現テストは Node 環境で実行） |
 | パッケージマネージャ | pnpm |
 
 ## ディレクトリ構成
 
 - `app/` — フロントエンド（Vue コンポーネント、ページ）
 - `server/` — バックエンド（API Routes、ユーティリティ）
+- `tests/` — 自動テスト（Vitest）
 - `experiments/` — 実験スクリプト（tsx で実行）
 - `ISSUES/` — 課題管理（優先度別: `high/`, `low/`）
+- `REQUESTS/` — 機能リクエスト（分類別: `special/`, `unknown/`）
 - `docs/` — ドキュメント（バージョン別管理）
   - `MASTER_PLAN.md` — 概要設計
   - `DEV_NOTES.md` — 開発メモ

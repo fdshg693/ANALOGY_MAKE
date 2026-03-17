@@ -1,5 +1,6 @@
-import { createEventStream } from 'h3'
+import { createEventStream, readBody, createError, defineEventHandler } from 'h3'
 import { AIMessageChunk } from '@langchain/core/messages'
+import { getAnalogyAgent } from '../utils/analogy-agent'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)

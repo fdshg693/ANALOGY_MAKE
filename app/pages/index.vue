@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { parseSSEStream } from '~/utils/sse-parser'
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
@@ -32,59 +34,27 @@ async function sendMessage(input: string) {
       throw new Error(`HTTP ${response.status}`)
     }
 
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let streamDone = false
+    let firstToken = true
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-
-      const events = buffer.split('\n\n')
-      buffer = events.pop()!
-
-      for (const eventStr of events) {
-        if (!eventStr.trim()) continue
-
-        const lines = eventStr.split('\n')
-        let eventType = ''
-        let data = ''
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) eventType = line.slice(7)
-          if (line.startsWith('data: ')) data = line.slice(6)
+    await parseSSEStream(response.body, {
+      onToken(content) {
+        if (firstToken) {
+          isStreaming.value = true
+          firstToken = false
         }
-
-        if (eventType === 'token' && data) {
-          if (!isStreaming.value) isStreaming.value = true
-          const parsed = JSON.parse(data)
-          assistantMessage.content += parsed.content
+        assistantMessage.content += content
+      },
+      onDone() {},
+      onError(message) {
+        const errorText = `\n\n⚠ エラーが発生しました: ${message}`
+        if (assistantMessage.content) {
+          assistantMessage.content += errorText
+        } else {
+          assistantMessage.content = errorText.trimStart()
         }
-
-        if (eventType === 'done') {
-          streamDone = true
-          break
-        }
-
-        if (eventType === 'error' && data) {
-          const parsed = JSON.parse(data)
-          const errorText = `\n\n⚠ エラーが発生しました: ${parsed.message}`
-          if (assistantMessage.content) {
-            assistantMessage.content += errorText
-          } else {
-            assistantMessage.content = errorText.trimStart()
-          }
-          assistantMessage.isError = true
-          streamDone = true
-          break
-        }
-      }
-
-      if (streamDone) break
-    }
+        assistantMessage.isError = true
+      },
+    })
 
     if (!assistantMessage.content && !assistantMessage.isError) {
       assistantMessage.content = '（応答を取得できませんでした）'

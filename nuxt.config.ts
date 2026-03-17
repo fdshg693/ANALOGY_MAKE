@@ -5,4 +5,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     openaiApiKey: '',
   },
+  nitro: {
+    externals: {
+      external: ['better-sqlite3'],
+    },
+  },
 })

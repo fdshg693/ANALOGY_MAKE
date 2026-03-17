@@ -4,6 +4,19 @@ import { ref } from 'vue'
 // Nuxt の auto-import を模倣
 vi.stubGlobal('ref', ref)
 
+// import.meta.client は vitest.config.ts の define で
+// (globalThis.__NUXT_CLIENT__ ?? false) に置換される
+declare var __NUXT_CLIENT__: boolean | undefined
+globalThis.__NUXT_CLIENT__ = false
+
+// localStorage のモック
+const mockLocalStorage = {
+  getItem: vi.fn().mockReturnValue(null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+}
+vi.stubGlobal('localStorage', mockLocalStorage)
+
 // parseSSEStream をモック
 vi.mock('../../app/utils/sse-parser', () => ({
   parseSSEStream: vi.fn(),
@@ -22,6 +35,8 @@ import { parseSSEStream } from '~/app/utils/sse-parser'
 describe('useChat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockLocalStorage.getItem.mockReturnValue(null)
+    globalThis.__NUXT_CLIENT__ = false
   })
 
   it('初期状態', () => {
@@ -152,5 +167,85 @@ describe('useChat', () => {
     const result = useChat()
     expect(result.abort).toBeDefined()
     expect(typeof result.abort).toBe('function')
+  })
+
+  describe('threadId の永続化', () => {
+    it('import.meta.client が false の場合、crypto.randomUUID で生成', () => {
+      globalThis.__NUXT_CLIENT__ = false
+      mockLocalStorage.getItem.mockReturnValue(null)
+
+      const { threadId } = useChat()
+      expect(threadId.value).toBe('mock-uuid')
+    })
+
+    it('import.meta.client が true で localStorage に threadId がない場合、新規生成して保存', () => {
+      globalThis.__NUXT_CLIENT__ = true
+      mockLocalStorage.getItem.mockReturnValue(null)
+
+      const { threadId } = useChat()
+      expect(threadId.value).toBe('mock-uuid')
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith('analogy-threadId', 'mock-uuid')
+
+      globalThis.__NUXT_CLIENT__ = false
+    })
+
+    it('import.meta.client が true で localStorage に threadId がある場合、復元', () => {
+      globalThis.__NUXT_CLIENT__ = true
+      mockLocalStorage.getItem.mockReturnValue('stored-thread-id')
+
+      const { threadId } = useChat()
+      expect(threadId.value).toBe('stored-thread-id')
+
+      globalThis.__NUXT_CLIENT__ = false
+    })
+  })
+
+  describe('履歴復元', () => {
+    it('import.meta.client が true で localStorage に threadId がある場合、履歴を取得', async () => {
+      globalThis.__NUXT_CLIENT__ = true
+      mockLocalStorage.getItem.mockReturnValue('stored-thread-id')
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          messages: [
+            { role: 'user', content: 'テスト' },
+            { role: 'assistant', content: '回答' },
+          ],
+        }),
+      })
+
+      const { messages, isLoading } = useChat()
+
+      // loadHistory is called but not awaited, so wait for it
+      await vi.waitFor(() => {
+        expect(isLoading.value).toBe(false)
+      })
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/chat/history?threadId=stored-thread-id')
+      expect(messages.value).toEqual([
+        { role: 'user', content: 'テスト' },
+        { role: 'assistant', content: '回答' },
+      ])
+
+      globalThis.__NUXT_CLIENT__ = false
+    })
+
+    it('履歴取得失敗時は空チャットで開始', async () => {
+      globalThis.__NUXT_CLIENT__ = true
+      mockLocalStorage.getItem.mockReturnValue('stored-thread-id')
+
+      mockFetch.mockRejectedValue(new Error('Network error'))
+
+      const { messages, isLoading } = useChat()
+
+      await vi.waitFor(() => {
+        expect(isLoading.value).toBe(false)
+      })
+
+      expect(messages.value).toEqual([])
+
+      globalThis.__NUXT_CLIENT__ = false
+    })
   })
 })

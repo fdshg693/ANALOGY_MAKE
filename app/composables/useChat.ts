@@ -6,12 +6,46 @@ export interface Message {
   isError?: boolean
 }
 
+const THREAD_ID_KEY = 'analogy-threadId'
+
+function getOrCreateThreadId(): string {
+  if (import.meta.client) {
+    const stored = localStorage.getItem(THREAD_ID_KEY)
+    if (stored) return stored
+  }
+  const id = crypto.randomUUID()
+  if (import.meta.client) {
+    localStorage.setItem(THREAD_ID_KEY, id)
+  }
+  return id
+}
+
 export function useChat() {
   const messages = ref<Message[]>([])
   const isLoading = ref(false)
   const isStreaming = ref(false)
-  const threadId = ref(crypto.randomUUID())
+  const threadId = ref(getOrCreateThreadId())
   let abortController: AbortController | null = null
+
+  async function loadHistory(): Promise<void> {
+    isLoading.value = true
+    try {
+      const res = await fetch(`/api/chat/history?threadId=${threadId.value}`)
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.messages?.length) {
+        messages.value = data.messages
+      }
+    } catch {
+      // 取得失敗時は空チャットで開始
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  if (import.meta.client && localStorage.getItem(THREAD_ID_KEY)) {
+    loadHistory()
+  }
 
   async function sendMessage(input: string): Promise<void> {
     if (!input) return

@@ -10,4 +10,7 @@ export default defineConfig({
       '~': resolve(__dirname, '.'),
     },
   },
+  define: {
+    'import.meta.client': 'globalThis.__NUXT_CLIENT__',
+  },
 })

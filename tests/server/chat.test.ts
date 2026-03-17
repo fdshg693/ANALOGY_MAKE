@@ -27,7 +27,7 @@ const mockAgent = {
 }
 
 vi.mock('../../server/utils/analogy-agent', () => ({
-  getAnalogyAgent: () => mockAgent,
+  getAnalogyAgent: () => Promise.resolve(mockAgent),
 }))
 
 // Import handler after mocks are set up

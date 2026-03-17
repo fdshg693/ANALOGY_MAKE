@@ -1,11 +1,14 @@
 import { ChatOpenAI } from "@langchain/openai"
 import { createAgent } from "langchain"
-import { MemorySaver } from "@langchain/langgraph"
+import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite"
+import { mkdirSync } from "node:fs"
 import { ANALOGY_SYSTEM_PROMPT } from "./analogy-prompt"
+
+const DB_PATH = "./data/langgraph-checkpoints.db"
 
 let _agent: ReturnType<typeof createAgent> | null = null
 
-export function getAnalogyAgent() {
+export async function getAnalogyAgent() {
   if (!_agent) {
     const config = useRuntimeConfig()
 
@@ -15,7 +18,8 @@ export function getAnalogyAgent() {
       apiKey: config.openaiApiKey,
     })
 
-    const checkpointer = new MemorySaver()
+    mkdirSync("./data", { recursive: true })
+    const checkpointer = SqliteSaver.fromConnString(DB_PATH)
 
     _agent = createAgent({
       model,

@@ -14,7 +14,7 @@
 | スタイル | Scoped CSS（外部CSSライブラリなし） |
 | バックエンド | Nuxt Server API Routes |
 | AI連携 | LangChain.js + OpenAI API (gpt-4.1-mini, temperature 0.7) |
-| メモリ | LangGraph MemorySaver（インメモリ、再起動でリセット） |
+| メモリ | LangGraph SqliteSaver（SQLite永続化、@langchain/langgraph-checkpoint-sqlite） |
 | テスト | Vitest 4（happy-dom 導入済み、現テストは Node 環境で実行） |
 | パッケージマネージャ | pnpm |
 
@@ -44,14 +44,15 @@
 ## 開発上の注意
 
 - `createAgent` のパラメータ名は `systemPrompt`（`prompt` ではない）
+- `getAnalogyAgent()` は async 関数（呼び出し元で `await` が必要）
 - APIキーの変更後はサーバー再起動が必要（シングルトンの再初期化のため）
 - 環境変数: `OPENAI_API_KEY`（実験用）、`NUXT_OPENAI_API_KEY`（Nuxtサーバー用）
 - `npx nuxi typecheck` で vue-router volar 関連の既知警告あり（ビルド・実行に影響なし）
+- `data/` ディレクトリは SQLite データベースの保存先（`.gitignore` 済み）
 
 ## やらないこと
 
 - 認証・ユーザー管理
-- 会話履歴の永続化（DBへの保存）
 - RAG構成・事例データベース
 - Web検索による最新事例の取得
 - モバイル最適化

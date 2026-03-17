@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'threadId is required' })
   }
 
-  const agent = getAnalogyAgent()
+  const agent = await getAnalogyAgent()
   const eventStream = createEventStream(event)
 
   void (async () => {

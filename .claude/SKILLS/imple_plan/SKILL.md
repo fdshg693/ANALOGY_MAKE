@@ -6,12 +6,13 @@ user-invocable: true
 
 ## コンテキスト
 
-- 最新バージョン番号: !`ls -1d docs/ver*/ 2>/dev/null | sed 's|.*/ver||;s|/||' | sort -n | tail -1`
+- カテゴリ: !`cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app`
+- 最新バージョン番号: !`CAT=$(cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app); VER=$(ls -1d "docs/$CAT/ver"*/ 2>/dev/null | sed 's|.*/ver||;s|/||' | sort -n | tail -1); echo "${VER:-0}"`
 
 ## 準備
 
 最新の手前のバージョンの `CURRENT.md` を参照して、現在のコード状況を把握してください。
-（例: 最新バージョンが 4 なら `docs/ver3/CURRENT.md` を参照）
+（例: 最新バージョンが 4 なら `docs/{カテゴリ}/ver3/CURRENT.md` を参照）
 
 前バージョンの `CURRENT.md` が存在しない場合（ver1 など）は、サブエージェントによるコードベース調査で現状を把握すること。
 

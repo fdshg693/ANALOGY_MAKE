@@ -25,21 +25,29 @@
 - `server/` — バックエンド（API Routes、ユーティリティ）
 - `tests/` — 自動テスト（Vitest）
 - `experiments/` — 実験スクリプト（tsx で実行）
-- `ISSUES/` — 課題管理（優先度別: `high/`, `low/`）
+- `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）
 - `REQUESTS/` — 機能リクエスト（分類別: `special/`, `unknown/`）
-- `docs/` — ドキュメント（バージョン別管理）
-  - `MASTER_PLAN.md` — 概要設計
-  - `DEV_NOTES.md` — 開発メモ
-  - `ver{N}/` — バージョン別ドキュメント
+- `docs/` — ドキュメント（カテゴリ別 → バージョン別管理）
+  - `{category}/MASTER_PLAN.md` — カテゴリごとの概要設計
+  - `{category}/DEV_NOTES.md` — 開発メモ
+  - `{category}/ver{N}/` — バージョン別ドキュメント
 
 ## バージョン管理規則
 
-各バージョンフォルダ `docs/ver{N}/` の構成:
+各バージョンフォルダ `docs/{category}/ver{N}/` の構成:
 - `ROUGH_PLAN.md` — タスク概要
 - `REFACTOR.md` — リファクタリング計画
 - `IMPLEMENT.md` — 実装計画
 - `MEMO.md` — 実装メモ・残課題
 - `CURRENT.md` — そのバージョン完了時のコード現況（CLAUDE.md と重複しない内容のみ）
+
+## カテゴリ管理
+
+- 現在のカテゴリは `.claude/CURRENT_CATEGORY` に記載（1行のカテゴリ名のみ）
+- 未設定時のフォールバック: `app`
+- 利用可能カテゴリ: `app`（アプリ）, `infra`（インフラ）, `cicd`（CI/CD）, `util`（ユーティリティ）
+- カテゴリ切り替え: `echo "{category}" > .claude/CURRENT_CATEGORY`
+- 各SKILLは自動的に現在のカテゴリに対応するパスを参照する
 
 ## 開発上の注意
 

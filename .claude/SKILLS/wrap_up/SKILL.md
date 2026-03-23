@@ -6,7 +6,8 @@ user-invocable: true
 
 ## コンテキスト
 
-- 最新バージョン番号: !`ls -1d docs/ver*/ 2>/dev/null | sed 's|.*/ver||;s|/||' | sort -n | tail -1`
+- カテゴリ: !`cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app`
+- 最新バージョン番号: !`CAT=$(cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app); VER=$(ls -1d "docs/$CAT/ver"*/ 2>/dev/null | sed 's|.*/ver||;s|/||' | sort -n | tail -1); echo "${VER:-0}"`
 
 ## 対応
 
@@ -26,13 +27,13 @@ user-invocable: true
 
 - ✅ **対応完了**: 修正内容を具体的に記載
 - ⏭️ **対応不要**: 理由を明確に記載し、**必ずplan_review_agentサブエージェントに報告して承認を得ること**
-- 📋 **次バージョンへ先送り**: スコープ外である理由を記載し、plan_review_agentサブエージェントに報告。**先送りにした内容は `ISSUES` フォルダに追加すること**（優先度に応じて `high` / `medium` / `low` に配置）
+- 📋 **次バージョンへ先送り**: スコープ外である理由を記載し、plan_review_agentサブエージェントに報告。**先送りにした内容は `ISSUES/{カテゴリ}` フォルダに追加すること**（優先度に応じて `high` / `medium` / `low` に配置）
 
 ### 進め方
 
 1. `MEMO.md` の各項目について、上記いずれの対応を取るかplan_review_agentサブエージェントを起動して確認・質問を積極的に行う
 2. 全ての項目への対応が完了したら、 `MEMO.md` を更新して対応結果を記載する
 3. ISSUES整理
-- 解決された`ISSUES` フォルダ配下の課題をファイルごと削除
-- `ISSUES` フォルダに追加する内容をユーザーに提案して、ユーザーの指示に従って追加する
+- 解決された`ISSUES/{カテゴリ}` フォルダ配下の課題をファイルごと削除
+- `ISSUES/{カテゴリ}` フォルダに追加する内容をユーザーに提案して、ユーザーの指示に従って追加する
 4. 最終的な対応結果の一覧をユーザーに報告する

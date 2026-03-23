@@ -21,7 +21,9 @@
       "Bash(xargs cat:*)",
       "Bash(cat .claude/CURRENT_CATEGORY:*)",
       "Bash(CAT=$(cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app) && ls -1d:*)",
-      "Edit(/.claude/skills/**)"
+      "Edit(/.claude/skills/**)",
+      "Edit(/.claude/skills/*/**)",
+      "Edit(/.claude/skills/meta_judge/**)"
     ]
   },
   "plansDirectory": "./.claude/plans",

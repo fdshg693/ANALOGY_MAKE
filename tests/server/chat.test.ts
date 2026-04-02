@@ -30,6 +30,15 @@ vi.mock('../../server/utils/analogy-agent', () => ({
   getAnalogyAgent: () => Promise.resolve(mockAgent),
 }))
 
+// Mock thread-store
+vi.mock('../../server/utils/thread-store', () => ({
+  upsertThread: vi.fn(),
+  getThreadTitle: vi.fn().mockReturnValue('新しいチャット'),
+  updateThreadTitle: vi.fn(),
+}))
+
+vi.stubGlobal('useRuntimeConfig', () => ({ openaiApiKey: 'test-key' }))
+
 // Import handler after mocks are set up
 import handler from '~/server/api/chat.post'
 import { readBody } from 'h3'

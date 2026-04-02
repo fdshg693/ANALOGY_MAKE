@@ -6,25 +6,11 @@ export interface Message {
   isError?: boolean
 }
 
-const THREAD_ID_KEY = 'analogy-threadId'
-
-function getOrCreateThreadId(): string {
-  if (import.meta.client) {
-    const stored = localStorage.getItem(THREAD_ID_KEY)
-    if (stored) return stored
-  }
-  const id = crypto.randomUUID()
-  if (import.meta.client) {
-    localStorage.setItem(THREAD_ID_KEY, id)
-  }
-  return id
-}
-
 export function useChat() {
   const messages = ref<Message[]>([])
   const isLoading = ref(false)
   const isStreaming = ref(false)
-  const threadId = ref(getOrCreateThreadId())
+  const threadId = ref('')
   let abortController: AbortController | null = null
 
   async function loadHistory(): Promise<void> {
@@ -43,12 +29,9 @@ export function useChat() {
     }
   }
 
-  if (import.meta.client && localStorage.getItem(THREAD_ID_KEY)) {
-    loadHistory()
-  }
-
   async function sendMessage(input: string): Promise<void> {
     if (!input) return
+    if (!threadId.value) return
 
     messages.value.push({ role: 'user', content: input })
     isLoading.value = true
@@ -120,5 +103,14 @@ export function useChat() {
     abortController?.abort()
   }
 
-  return { messages, isLoading, isStreaming, threadId, sendMessage, abort }
+  function switchThread(newThreadId: string): void {
+    if (isStreaming.value) {
+      abort()
+    }
+    messages.value = []
+    threadId.value = newThreadId
+    loadHistory()
+  }
+
+  return { messages, isLoading, isStreaming, threadId, sendMessage, abort, switchThread, loadHistory }
 }

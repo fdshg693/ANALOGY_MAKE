@@ -1,8 +1,40 @@
 <script setup lang="ts">
 import { useChat } from '~/composables/useChat'
+import { useThreads } from '~/composables/useThreads'
 
-const { messages, isLoading, isStreaming, sendMessage, abort } = useChat()
+const { messages, isLoading, isStreaming, sendMessage, abort, switchThread } = useChat()
+const {
+  threads, activeThreadId, isLoadingThreads,
+  loadThreads, createNewThread, setActiveThread, initActiveThread,
+} = useThreads()
+
 const messagesContainer = ref<HTMLElement | null>(null)
+
+// 初期化
+onMounted(async () => {
+  initActiveThread()
+  await loadThreads()
+  if (activeThreadId.value) {
+    switchThread(activeThreadId.value)
+  } else {
+    handleNewThread()
+  }
+})
+
+function handleSelectThread(threadId: string) {
+  setActiveThread(threadId)
+  switchThread(threadId)
+}
+
+function handleNewThread() {
+  const newId = createNewThread()
+  switchThread(newId)
+}
+
+async function handleSend(content: string) {
+  await sendMessage(content)
+  await loadThreads()
+}
 
 watch(
   () => {
@@ -20,39 +52,54 @@ watch(
 </script>
 
 <template>
-  <div class="chat-page">
-    <header class="chat-header">
-      <h1>Analogy AI</h1>
-    </header>
-
-    <main class="chat-messages" ref="messagesContainer">
-      <ChatMessage
-        v-for="(msg, i) in messages"
-        :key="i"
-        :role="msg.role"
-        :content="msg.content"
-        :is-error="msg.isError"
-      />
-      <div v-if="isLoading && !isStreaming" class="loading-indicator">
-        考え中...
-      </div>
-    </main>
-
-    <ChatInput
-      :disabled="isLoading"
-      :is-streaming="isStreaming"
-      @send="sendMessage"
-      @abort="abort"
+  <div class="app-layout">
+    <ThreadSidebar
+      :threads="threads"
+      :active-thread-id="activeThreadId"
+      :is-loading="isLoadingThreads"
+      @select-thread="handleSelectThread"
+      @new-thread="handleNewThread"
     />
+    <div class="chat-page">
+      <header class="chat-header">
+        <h1>Analogy AI</h1>
+      </header>
+
+      <main class="chat-messages" ref="messagesContainer">
+        <ChatMessage
+          v-for="(msg, i) in messages"
+          :key="i"
+          :role="msg.role"
+          :content="msg.content"
+          :is-error="msg.isError"
+        />
+        <div v-if="isLoading && !isStreaming" class="loading-indicator">
+          考え中...
+        </div>
+      </main>
+
+      <ChatInput
+        :disabled="isLoading"
+        :is-streaming="isStreaming"
+        @send="handleSend"
+        @abort="abort"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.chat-page {
+.app-layout {
+  display: flex;
   height: 100dvh;
+}
+
+.chat-page {
+  flex: 1;
   display: flex;
   flex-direction: column;
   background: #fafafa;
+  min-width: 0;
 }
 
 .chat-header {

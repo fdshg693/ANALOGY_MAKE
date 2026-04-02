@@ -1,0 +1,59 @@
+import Database from 'better-sqlite3'
+import { mkdirSync } from 'node:fs'
+
+const DB_PATH = './data/langgraph-checkpoints.db'
+
+interface ThreadRecord {
+  thread_id: string
+  title: string
+  created_at: string  // ISO 8601
+  updated_at: string  // ISO 8601
+}
+
+let _db: Database.Database | null = null
+
+function getDb(): Database.Database {
+  if (!_db) {
+    mkdirSync('./data', { recursive: true })
+    _db = new Database(DB_PATH)
+    _db.pragma('journal_mode = WAL')
+    _db.exec(`
+      CREATE TABLE IF NOT EXISTS threads (
+        thread_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL DEFAULT '新しいチャット',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `)
+  }
+  return _db
+}
+
+/** スレッド一覧を更新日時降順で取得 */
+export function getThreads(): ThreadRecord[] {
+  const db = getDb()
+  return db.prepare('SELECT * FROM threads ORDER BY updated_at DESC').all() as ThreadRecord[]
+}
+
+/** スレッドを新規登録（既存なら updated_at のみ更新） */
+export function upsertThread(threadId: string, title?: string): void {
+  const db = getDb()
+  db.prepare(`
+    INSERT INTO threads (thread_id, title)
+    VALUES (?, ?)
+    ON CONFLICT(thread_id) DO UPDATE SET updated_at = datetime('now')
+  `).run(threadId, title ?? '新しいチャット')
+}
+
+/** スレッドタイトルを更新 */
+export function updateThreadTitle(threadId: string, title: string): void {
+  const db = getDb()
+  db.prepare("UPDATE threads SET title = ?, updated_at = datetime('now') WHERE thread_id = ?").run(title, threadId)
+}
+
+/** スレッドの現在のタイトルを取得（存在しなければ null） */
+export function getThreadTitle(threadId: string): string | null {
+  const db = getDb()
+  const row = db.prepare('SELECT title FROM threads WHERE thread_id = ?').get(threadId) as { title: string } | undefined
+  return row?.title ?? null
+}

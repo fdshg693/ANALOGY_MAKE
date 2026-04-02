@@ -16,7 +16,10 @@
 | AI連携 | LangGraph StateGraph + LangChain.js + OpenAI API (gpt-4.1-mini, temperature 0.7) + Tavily Search (@langchain/tavily) |
 | メモリ | LangGraph SqliteSaver（SQLite永続化、@langchain/langgraph-checkpoint-sqlite） |
 | テスト | Vitest 4（happy-dom 導入済み、現テストは Node 環境で実行） |
-| パッケージマネージャ | pnpm |
+| パッケージマネージャ | pnpm（`packageManager: pnpm@10.26.2` で固定） |
+| デプロイ先 | Azure App Service Free (F1, Linux)（Nitro preset: `node-server`） |
+| CI/CD | GitHub Actions（`.github/workflows/deploy.yml`、main push 時に自動デプロイ） |
+| コマンドランナー | just（`Justfile` で Azure CLI 操作をラップ） |
 
 ## ディレクトリ構成
 
@@ -25,8 +28,10 @@
 - `server/` — バックエンド（API Routes、ユーティリティ）
 - `tests/` — 自動テスト（Vitest）
 - `experiments/` — 実験スクリプト（tsx で実行）
+- `.github/workflows/` — CI/CD（GitHub Actions）
 - `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）
 - `REQUESTS/` — 機能リクエスト（分類別: `workflow/` 等）
+- `Justfile` — Azure CLI 運用コマンド（ログ確認・再起動・SSH 等）
 - `docs/` — ドキュメント（カテゴリ別 → バージョン別管理）
   - `{category}/MASTER_PLAN.md` — カテゴリごとの概要設計
   - `{category}/DEV_NOTES.md` — 開発メモ
@@ -63,6 +68,7 @@
 - 環境変数: `OPENAI_API_KEY`（実験用）、`NUXT_OPENAI_API_KEY`（Nuxtサーバー用）、`NUXT_TAVILY_API_KEY`（Tavily Search用、未設定時はWeb検索なしで動作）
 - `npx nuxi typecheck` で vue-router volar 関連の既知警告あり（ビルド・実行に影響なし）
 - `data/` ディレクトリは SQLite データベースの保存先（`.gitignore` 済み）
+- DB パスは `server/utils/db-config.ts` で一元管理（開発: `./data/`、本番: `/home/data/`）
 - `better-sqlite3` は pnpm の厳密な依存解決により直接依存として追加済み（`thread-store.ts` での直接インポートのため）
 
 ## やらないこと
@@ -70,4 +76,4 @@
 - 認証・ユーザー管理
 - RAG構成・事例データベース
 - モバイル最適化
-- 本番デプロイ
+- カスタムドメイン・SSL証明書管理・監視・バックアップ

@@ -6,15 +6,57 @@ const props = defineProps<{
   role: 'user' | 'assistant'
   content: string
   isError?: boolean
+  isStreaming?: boolean
 }>()
 
-const renderedHtml = computed(() => {
-  if (props.role !== 'assistant') return ''
+const RENDER_THROTTLE_MS = 80
+
+const renderedHtml = ref('')
+let throttleTimer: ReturnType<typeof setTimeout> | null = null
+
+function renderMarkdown() {
   const html = marked.parse(props.content) as string
   if (import.meta.client) {
-    return DOMPurify.sanitize(html)
+    renderedHtml.value = DOMPurify.sanitize(html)
+  } else {
+    renderedHtml.value = html
   }
-  return html
+}
+
+watch(() => props.content, () => {
+  if (props.role !== 'assistant') return
+
+  if (!props.isStreaming) {
+    if (throttleTimer) {
+      clearTimeout(throttleTimer)
+      throttleTimer = null
+    }
+    renderMarkdown()
+    return
+  }
+
+  if (!throttleTimer) {
+    throttleTimer = setTimeout(() => {
+      throttleTimer = null
+      renderMarkdown()
+    }, RENDER_THROTTLE_MS)
+  }
+}, { immediate: true })
+
+watch(() => props.isStreaming, (current, previous) => {
+  if (previous && !current) {
+    if (throttleTimer) {
+      clearTimeout(throttleTimer)
+      throttleTimer = null
+    }
+    renderMarkdown()
+  }
+})
+
+onBeforeUnmount(() => {
+  if (throttleTimer) {
+    clearTimeout(throttleTimer)
+  }
 })
 </script>
 

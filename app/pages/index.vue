@@ -72,6 +72,7 @@ watch(
           :role="msg.role"
           :content="msg.content"
           :is-error="msg.isError"
+          :is-streaming="isStreaming && i === messages.length - 1"
         />
         <div v-if="isLoading && !isStreaming" class="loading-indicator">
           考え中...

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 import shutil
 import subprocess
 import sys
@@ -98,6 +99,23 @@ def normalize_string_list(value: Any, field_name: str) -> list[str]:
     return value
 
 
+def normalize_cli_args(value: Any, field_name: str) -> list[str]:
+    if value is None:
+        return []
+
+    raw_items = [value] if isinstance(value, str) else value
+    if not isinstance(raw_items, list) or not all(
+        isinstance(item, str) for item in raw_items
+    ):
+        raise SystemExit(f"'{field_name}' must be a string or list of strings.")
+
+    parsed_args: list[str] = []
+    for item in raw_items:
+        parsed_args.extend(shlex.split(item, posix=True))
+
+    return parsed_args
+
+
 def get_steps(config: dict[str, Any]) -> list[dict[str, Any]]:
     raw_steps = config.get("steps")
     if not isinstance(raw_steps, list) or not raw_steps:
@@ -120,7 +138,7 @@ def get_steps(config: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "name": name,
                 "prompt": prompt,
-                "args": normalize_string_list(raw_step.get("args"), f"steps[{index}].args"),
+                "args": normalize_cli_args(raw_step.get("args"), f"steps[{index}].args"),
             }
         )
 
@@ -134,7 +152,7 @@ def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str]]
 
     executable = command_config.get("executable", "claude")
     prompt_flag = command_config.get("prompt_flag", "-p")
-    common_args = normalize_string_list(command_config.get("args"), "command.args")
+    common_args = normalize_cli_args(command_config.get("args"), "command.args")
 
     if not isinstance(executable, str) or not executable.strip():
         raise SystemExit("'command.executable' must be a non-empty string.")

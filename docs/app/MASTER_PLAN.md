@@ -5,5 +5,5 @@
 `./MASTER_PLAN/PHASE2.md` を進行中:
 - ✅ 1. 会話履歴の永続化（SQLite） — ver10 で完了
 - ✅ 2. 複数スレッド管理 — ver11 で完了
-- ⬜ 3. Web検索連携（Tavily Search）
+- ✅ 3. Web検索連携（Tavily Search） — ver12 で完了
 - ⬜ 4. LangGraphステートマシンによるフロー制御

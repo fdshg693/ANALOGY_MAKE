@@ -6,8 +6,8 @@ command:
       --dangerously-skip-permissions
       --disallowedTools "AskUserQuestion"
       --append-system-prompt "you cannot ask questions to the user. so,
-      whenever you think you should get human feedback, just write under
-      REQUESTS\AI. Human will see this after you finish this step.
+      whenever you think you should get human feedback, just write a file under
+      `REQUESTS/AI` folder. Human will see this after you finish this step.
       (**So you cannot directly ask nor get human feedback in this session.**)"
 
 steps:

@@ -13,7 +13,7 @@
 | 言語 | TypeScript |
 | スタイル | Scoped CSS（外部CSSライブラリなし） |
 | バックエンド | Nuxt Server API Routes |
-| AI連携 | LangChain.js + OpenAI API (gpt-4.1-mini, temperature 0.7) |
+| AI連携 | LangChain.js + OpenAI API (gpt-4.1-mini, temperature 0.7) + Tavily Search (@langchain/tavily) |
 | メモリ | LangGraph SqliteSaver（SQLite永続化、@langchain/langgraph-checkpoint-sqlite） |
 | テスト | Vitest 4（happy-dom 導入済み、現テストは Node 環境で実行） |
 | パッケージマネージャ | pnpm |
@@ -54,7 +54,7 @@
 - `createAgent` のパラメータ名は `systemPrompt`（`prompt` ではない）
 - `getAnalogyAgent()` は async 関数（呼び出し元で `await` が必要）
 - APIキーの変更後はサーバー再起動が必要（シングルトンの再初期化のため）
-- 環境変数: `OPENAI_API_KEY`（実験用）、`NUXT_OPENAI_API_KEY`（Nuxtサーバー用）
+- 環境変数: `OPENAI_API_KEY`（実験用）、`NUXT_OPENAI_API_KEY`（Nuxtサーバー用）、`NUXT_TAVILY_API_KEY`（Tavily Search用、未設定時はWeb検索なしで動作）
 - `npx nuxi typecheck` で vue-router volar 関連の既知警告あり（ビルド・実行に影響なし）
 - `data/` ディレクトリは SQLite データベースの保存先（`.gitignore` 済み）
 - `better-sqlite3` は pnpm の厳密な依存解決により直接依存として追加済み（`thread-store.ts` での直接インポートのため）
@@ -63,6 +63,5 @@
 
 - 認証・ユーザー管理
 - RAG構成・事例データベース
-- Web検索による最新事例の取得
 - モバイル最適化
 - 本番デプロイ

@@ -8,6 +8,8 @@ user-invocable: true
 
 - カテゴリ: !`cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app`
 - 最新バージョン番号: !`bash .claude/scripts/get_latest_version.sh`
+- 次のマイナーバージョン番号: !`bash .claude/scripts/get_latest_version.sh next-minor`
+- 次のメジャーバージョン番号: !`bash .claude/scripts/get_latest_version.sh next-major`
 
 ## 準備
 
@@ -23,7 +25,22 @@ user-invocable: true
 
 ## 分割
 
-次のバージョン番号（最新バージョン番号 + 1）で新しい空の `docs/{カテゴリ}/ver{N}` フォルダを作成してください。
+### バージョン種別の判定
+
+今回のタスクがメジャー・マイナーのどちらに該当するか判定する:
+
+**メジャーバージョンアップ (X.0)** の条件（いずれか）:
+- MASTER_PLAN の新項目に着手する
+- アーキテクチャの変更を伴う
+- 新規の外部ライブラリ・サービスを導入する
+- 破壊的変更を伴うリファクタリング
+
+**マイナーバージョンアップ (X.Y)** の条件（上記に該当しない場合）:
+- ISSUES の解消（バグ修正・改善）
+- 既存機能の微調整・UX改善
+- ドキュメント整理・テスト追加
+
+判定結果に基づいて、新しい空の `docs/{カテゴリ}/ver{次のバージョン番号}` フォルダを作成してください。
 
 ### ステップ1: タスク概要の作成と承認
 

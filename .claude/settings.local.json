@@ -28,7 +28,8 @@
       "Edit(/.claude/skills/imple_plan/**)",
       "Edit(/.claude/skills/wrap_up/**)",
       "Edit(/.claude/skills/write_current/**)",
-      "Edit(/.claude/skills/retrospective/**)"
+      "Edit(/.claude/skills/retrospective/**)",
+      "Bash(bash:*)"
     ]
   },
   "plansDirectory": "./.claude/plans",

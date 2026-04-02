@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash .claude/scripts/get_latest_version.sh)",
+      "Bash(ls C:/CodeRoot/ANALOGY_MAKE/.claude/plans/*.md)"
+    ],
+    "additionalDirectories": [
+      "C:\\CodeRoot\\ANALOGY_MAKE"
+    ]
+  }
+}

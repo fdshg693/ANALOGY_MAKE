@@ -34,5 +34,12 @@ user-invocable: true
 4. `/write_current` — `CURRENT.md` ・ `CLAUDE.md` の作成・更新を行った
 5. `/retrospective` — **（本ステップ）** 振り返りを行い、次バージョンへの改善点を整理する
 
-## 3. Git にコミットする
+## 3. 次バージョンの種別推奨
+
+次に予定されるタスク（MASTER_PLAN の次項目、未解決 ISSUES）を踏まえて、次バージョンがメジャー・マイナーのどちらが適切かを推奨する。
+
+- 次のマイナーバージョン候補: !`bash .claude/scripts/get_latest_version.sh next-minor`
+- 次のメジャーバージョン候補: !`bash .claude/scripts/get_latest_version.sh next-major`
+
+## 4. Git にコミットする
 - 今回の変更内容を元にコミットメッセージを作成して、コミット・プッシュを行ってください

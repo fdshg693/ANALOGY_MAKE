@@ -37,7 +37,7 @@ vi.mock('../../server/utils/thread-store', () => ({
   updateThreadTitle: vi.fn(),
 }))
 
-vi.stubGlobal('useRuntimeConfig', () => ({ openaiApiKey: 'test-key' }))
+vi.stubGlobal('useRuntimeConfig', () => ({ openaiApiKey: 'test-key', tavilyApiKey: 'test-tavily-key' }))
 
 // Import handler after mocks are set up
 import handler from '~/server/api/chat.post'

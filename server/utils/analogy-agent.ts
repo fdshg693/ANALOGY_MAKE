@@ -1,6 +1,7 @@
 import { ChatOpenAI } from "@langchain/openai"
 import { createAgent } from "langchain"
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite"
+import { TavilySearch } from "@langchain/tavily"
 import { mkdirSync } from "node:fs"
 import { ANALOGY_SYSTEM_PROMPT } from "./analogy-prompt"
 
@@ -18,12 +19,20 @@ export async function getAnalogyAgent() {
       apiKey: config.openaiApiKey,
     })
 
+    const tools: any[] = []
+    if (config.tavilyApiKey) {
+      tools.push(new TavilySearch({
+        maxResults: 3,
+        tavilyApiKey: config.tavilyApiKey,
+      }))
+    }
+
     mkdirSync("./data", { recursive: true })
     const checkpointer = SqliteSaver.fromConnString(DB_PATH)
 
     _agent = createAgent({
       model,
-      tools: [],
+      tools,
       systemPrompt: ANALOGY_SYSTEM_PROMPT,
       checkpointer,
     })

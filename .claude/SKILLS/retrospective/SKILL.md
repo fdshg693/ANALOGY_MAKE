@@ -41,5 +41,11 @@ user-invocable: true
 - 次のマイナーバージョン候補: !`bash .claude/scripts/get_latest_version.sh next-minor`
 - 次のメジャーバージョン候補: !`bash .claude/scripts/get_latest_version.sh next-major`
 
-## 4. Git にコミットする
+## 4. 振り返り結果の記録
+
+- 振り返り結果を `docs/{カテゴリ}/ver{最新バージョン番号}/RETROSPECTIVE.md` に記録する
+- スキルへの改善提案がある場合は、提案だけでなく本ステップ内で `.claude/skills/` 配下のファイルを直接編集して即時適用する（次バージョンへの持ち越しを防ぐ）
+- 対応済みの ISSUES ファイルが残っている場合は削除する
+
+## 5. Git にコミットする
 - 今回の変更内容を元にコミットメッセージを作成して、コミット・プッシュを行ってください

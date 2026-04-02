@@ -9,29 +9,30 @@
       "WebFetch(domain:www.npmjs.com)",
       "WebFetch(domain:v03.api.js.langchain.com)",
       "WebFetch(domain:docs.claude.com)",
+      "Bash(xargs cat:*)",
       "Bash(xargs ls:*)",
       "Bash(pkill -f \"nuxt dev\")",
       "Bash(xargs grep:*)",
-      "Bash(pnpm exp:basic)",
-      "Bash(pnpm exp:memory)",
-      "Bash(pnpm exp:analogy)",
+      "Bash(pnpm exp:*)",
       "Bash(npx nuxi:*)",
-      "Bash(echo \"EXIT CODE: $?\")",
-      "Bash(npm ls:*)",
-      "Bash(xargs cat:*)",
-      "Bash(cat .claude/CURRENT_CATEGORY:*)",
-      "Bash(CAT=$(cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app) && ls -1d:*)",
-      "Edit(/.claude/skills/**)",
-      "Edit(/.claude/skills/*/**)",
-      "Edit(/.claude/skills/meta_judge/**)",
-      "Edit(/.claude/skills/split_plan/**)",
-      "Edit(/.claude/skills/imple_plan/**)",
-      "Edit(/.claude/skills/wrap_up/**)",
-      "Edit(/.claude/skills/write_current/**)",
-      "Edit(/.claude/skills/retrospective/**)",
-      "Bash(bash:*)"
+      "Bash(echo:*)",      
+      "Bash(bash:*)",
+      "Bash(git:*)"
     ]
   },
   "plansDirectory": "./.claude/plans",
-  "autoMemoryDirectory": "C:/CodeRoot/ANALOGY_MAKE/.claude/memory"
+  "autoMemoryDirectory": "C:/CodeRoot/ANALOGY_MAKE/.claude/memory",
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"PermissionRequest\", \"decision\": {\"behavior\": \"allow\"}}}'"
+          }
+        ]
+      }
+    ]
+  }
 }

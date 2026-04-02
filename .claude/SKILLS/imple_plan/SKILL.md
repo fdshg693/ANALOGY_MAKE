@@ -15,6 +15,7 @@ user-invocable: true
 
 1. 直前のメジャーバージョンの `CURRENT.md` を参照する
    - メジャーバージョンの特定: `bash .claude/scripts/get_latest_version.sh major`
+   - **フォールバック**: メジャーバージョンの `CURRENT.md` が存在しない場合は、それ以前のバージョンを遡って最新の `CURRENT.md` を参照する
 2. そのメジャーバージョン以降のマイナーバージョンに `CHANGES.md` があれば、それらも参照する
 3. 上記がいずれも存在しない場合は、サブエージェントによるコードベース調査で現状を把握する
 

@@ -1,8 +1,6 @@
 import Database from 'better-sqlite3'
-import { mkdirSync } from 'node:fs'
+import { DB_PATH } from './db-config'
 import { logger } from './logger'
-
-const DB_PATH = './data/langgraph-checkpoints.db'
 
 interface ThreadRecord {
   thread_id: string
@@ -15,7 +13,6 @@ let _db: Database.Database | null = null
 
 function getDb(): Database.Database {
   if (!_db) {
-    mkdirSync('./data', { recursive: true })
     _db = new Database(DB_PATH)
     _db.pragma('journal_mode = WAL')
     _db.exec(`

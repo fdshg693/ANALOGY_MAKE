@@ -3,7 +3,7 @@ import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite"
 import { ChatOpenAI } from "@langchain/openai"
 import { TavilySearch } from "@langchain/tavily"
 import type { BaseMessage } from "@langchain/core/messages"
-import { mkdirSync } from "node:fs"
+import { DB_PATH } from "./db-config"
 import {
   ABSTRACTION_PROMPT,
   CASE_SEARCH_PROMPT,
@@ -11,8 +11,6 @@ import {
   FOLLOWUP_PROMPT,
 } from "./analogy-prompt"
 import { logger } from "./logger"
-
-const DB_PATH = "./data/langgraph-checkpoints.db"
 
 // ステート定義
 const AnalogyState = Annotation.Root({
@@ -171,7 +169,6 @@ let _compiledGraph: ReturnType<ReturnType<typeof buildAnalogyGraph>["compile"]> 
 export async function getAnalogyAgent() {
   if (!_compiledGraph) {
     logger.agent.info("Initializing analogy graph...")
-    mkdirSync("./data", { recursive: true })
     const checkpointer = SqliteSaver.fromConnString(DB_PATH)
     const graph = buildAnalogyGraph()
     _compiledGraph = graph.compile({ checkpointer })

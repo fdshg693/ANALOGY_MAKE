@@ -7,6 +7,7 @@ export default defineNuxtConfig({
     tavilyApiKey: '',
   },
   nitro: {
+    preset: 'node-server',
     externals: {
       external: ['better-sqlite3'],
     },

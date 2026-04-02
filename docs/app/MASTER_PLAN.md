@@ -6,4 +6,4 @@
 - ✅ 1. 会話履歴の永続化（SQLite） — ver10 で完了
 - ✅ 2. 複数スレッド管理 — ver11 で完了
 - ✅ 3. Web検索連携（Tavily Search） — ver12 で完了
-- ⬜ 4. LangGraphステートマシンによるフロー制御
+- ✅ 4. LangGraphステートマシンによるフロー制御 — ver14.0 で完了

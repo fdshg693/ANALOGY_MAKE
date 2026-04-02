@@ -26,7 +26,7 @@
 - `tests/` — 自動テスト（Vitest）
 - `experiments/` — 実験スクリプト（tsx で実行）
 - `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）
-- `REQUESTS/` — 機能リクエスト（分類別: `special/`, `unknown/`）
+- `REQUESTS/` — 機能リクエスト（分類別: `workflow/` 等）
 - `docs/` — ドキュメント（カテゴリ別 → バージョン別管理）
   - `{category}/MASTER_PLAN.md` — カテゴリごとの概要設計
   - `{category}/DEV_NOTES.md` — 開発メモ
@@ -57,6 +57,7 @@
 - 環境変数: `OPENAI_API_KEY`（実験用）、`NUXT_OPENAI_API_KEY`（Nuxtサーバー用）
 - `npx nuxi typecheck` で vue-router volar 関連の既知警告あり（ビルド・実行に影響なし）
 - `data/` ディレクトリは SQLite データベースの保存先（`.gitignore` 済み）
+- `better-sqlite3` は pnpm の厳密な依存解決により直接依存として追加済み（`thread-store.ts` での直接インポートのため）
 
 ## やらないこと
 

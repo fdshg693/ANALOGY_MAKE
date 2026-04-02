@@ -23,7 +23,7 @@ user-invocable: true
 
 ### バージョン作成の流れ
 - カテゴリ: !`cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app`
-- 最新バージョン番号: !`CAT=$(cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app); VER=$(ls -1d "docs/$CAT/ver"*/ 2>/dev/null | sed 's|.*/ver||;s|/||' | sort -n | tail -1); echo "${VER:-0}"`
+- 最新バージョン番号: !`bash .claude/scripts/get_latest_version.sh`
 - 最新のバージョン作成の結果が `docs/{カテゴリ}/ver{最新バージョン番号}/` に記載されている
 
 各バージョンは以下の5ステップで作成される。本スキルはステップ5に相当する:
@@ -33,3 +33,6 @@ user-invocable: true
 3. `/wrap_up` — `MEMO.md` の各項目に対応し、細かい改善を行った
 4. `/write_current` — `CURRENT.md` ・ `CLAUDE.md` の作成・更新を行った
 5. `/retrospective` — **（本ステップ）** 振り返りを行い、次バージョンへの改善点を整理する
+
+## 3. Git にコミットする
+- 今回の変更内容を元にコミットメッセージを作成して、コミット・プッシュを行ってください

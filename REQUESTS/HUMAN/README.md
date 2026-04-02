@@ -6,3 +6,4 @@
 ## 分類
 
 - `workflow`: Claude Codeで作成しているワークフローに関わる内容
+- `claude_code`: Claude Code全般の改善点

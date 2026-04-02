@@ -1,0 +1,15 @@
+function createLogger(module: string) {
+  const prefix = `[${module}]`
+  return {
+    info: (...args: unknown[]) => console.log(prefix, ...args),
+    warn: (...args: unknown[]) => console.warn(prefix, ...args),
+    error: (...args: unknown[]) => console.error(prefix, ...args),
+  }
+}
+
+export const logger = {
+  agent: createLogger('agent'),
+  chat: createLogger('chat'),
+  thread: createLogger('thread'),
+  history: createLogger('history'),
+}

@@ -4,6 +4,7 @@ import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite"
 import { TavilySearch } from "@langchain/tavily"
 import { mkdirSync } from "node:fs"
 import { ANALOGY_SYSTEM_PROMPT } from "./analogy-prompt"
+import { logger } from "./logger"
 
 const DB_PATH = "./data/langgraph-checkpoints.db"
 
@@ -11,6 +12,7 @@ let _agent: ReturnType<typeof createAgent> | null = null
 
 export async function getAnalogyAgent() {
   if (!_agent) {
+    logger.agent.info('Initializing agent...')
     const config = useRuntimeConfig()
 
     const model = new ChatOpenAI({
@@ -25,6 +27,9 @@ export async function getAnalogyAgent() {
         maxResults: 3,
         tavilyApiKey: config.tavilyApiKey,
       }))
+      logger.agent.info('Tavily Search enabled (maxResults: 3)')
+    } else {
+      logger.agent.info('Tavily Search disabled (NUXT_TAVILY_API_KEY not set)')
     }
 
     mkdirSync("./data", { recursive: true })
@@ -36,6 +41,8 @@ export async function getAnalogyAgent() {
       systemPrompt: ANALOGY_SYSTEM_PROMPT,
       checkpointer,
     })
+
+    logger.agent.info('Agent initialized', { model: 'gpt-4.1-mini', tools: tools.length, dbPath: DB_PATH })
   }
   return _agent
 }

@@ -2,6 +2,7 @@ import { createEventStream, readBody, createError, defineEventHandler } from 'h3
 import { AIMessageChunk } from '@langchain/core/messages'
 import { getAnalogyAgent } from '../utils/analogy-agent'
 import { upsertThread, getThreadTitle, updateThreadTitle } from '../utils/thread-store'
+import { logger } from '../utils/logger'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
@@ -12,6 +13,8 @@ export default defineEventHandler(async (event) => {
   if (!body.threadId || typeof body.threadId !== 'string') {
     throw createError({ statusCode: 400, statusMessage: 'threadId is required' })
   }
+
+  logger.chat.info('Request received', { threadId: body.threadId, messageLength: body.message.length })
 
   const agent = await getAnalogyAgent()
   const eventStream = createEventStream(event)
@@ -28,6 +31,8 @@ export default defineEventHandler(async (event) => {
         },
       )
 
+      logger.chat.info('Streaming started', { threadId: body.threadId })
+
       let fullResponse = ''
 
       for await (const [chunk, _metadata] of stream) {
@@ -37,8 +42,12 @@ export default defineEventHandler(async (event) => {
             event: 'token',
             data: JSON.stringify({ content: chunk.content }),
           })
+        } else if (!(chunk instanceof AIMessageChunk)) {
+          logger.chat.info('Tool activity detected', { type: chunk.constructor.name, threadId: body.threadId })
         }
       }
+
+      logger.chat.info('Streaming completed', { threadId: body.threadId, responseLength: fullResponse.length })
 
       await eventStream.push({
         event: 'done',
@@ -52,6 +61,7 @@ export default defineEventHandler(async (event) => {
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error'
+      logger.chat.error('Streaming failed', { threadId: body.threadId, error: message })
       await eventStream.push({
         event: 'error',
         data: JSON.stringify({ message }),
@@ -70,6 +80,7 @@ export default defineEventHandler(async (event) => {
 
 async function generateTitle(threadId: string, userMessage: string, aiResponse: string): Promise<void> {
   try {
+    logger.chat.info('Title generation started', { threadId })
     const { ChatOpenAI } = await import('@langchain/openai')
     const config = useRuntimeConfig()
     const model = new ChatOpenAI({
@@ -85,8 +96,9 @@ async function generateTitle(threadId: string, userMessage: string, aiResponse: 
     const title = (result.content as string).trim().slice(0, 30)
     if (title) {
       updateThreadTitle(threadId, title)
+      logger.chat.info('Title generated', { threadId, title })
     }
-  } catch {
-    // タイトル生成失敗はサイレントに無視
+  } catch (e) {
+    logger.chat.warn('Title generation failed', { threadId, error: e instanceof Error ? e.message : 'Unknown error' })
   }
 }

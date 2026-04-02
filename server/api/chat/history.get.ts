@@ -1,6 +1,7 @@
 import { defineEventHandler, getQuery, createError } from 'h3'
 import { HumanMessage, AIMessage } from '@langchain/core/messages'
 import { getAnalogyAgent } from '../../utils/analogy-agent'
+import { logger } from '../../utils/logger'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
@@ -9,6 +10,8 @@ export default defineEventHandler(async (event) => {
   if (!threadId || typeof threadId !== 'string') {
     throw createError({ statusCode: 400, statusMessage: 'threadId is required' })
   }
+
+  logger.history.info('History requested', { threadId })
 
   try {
     const agent = await getAnalogyAgent()
@@ -28,8 +31,11 @@ export default defineEventHandler(async (event) => {
         content: typeof msg.content === 'string' ? msg.content : '',
       }))
 
+    logger.history.info('History loaded', { threadId, messageCount: messages.length })
+
     return { messages }
-  } catch {
+  } catch (e) {
+    logger.history.warn('History load failed', { threadId, error: e instanceof Error ? e.message : 'Unknown error' })
     return { messages: [] }
   }
 })

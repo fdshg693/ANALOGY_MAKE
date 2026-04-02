@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { mkdirSync } from 'node:fs'
+import { logger } from './logger'
 
 const DB_PATH = './data/langgraph-checkpoints.db'
 
@@ -25,6 +26,7 @@ function getDb(): Database.Database {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `)
+    logger.thread.info('Database initialized', { path: DB_PATH, mode: 'WAL' })
   }
   return _db
 }
@@ -43,12 +45,14 @@ export function upsertThread(threadId: string, title?: string): void {
     VALUES (?, ?)
     ON CONFLICT(thread_id) DO UPDATE SET updated_at = datetime('now')
   `).run(threadId, title ?? '新しいチャット')
+  logger.thread.info('Thread upserted', { threadId })
 }
 
 /** スレッドタイトルを更新 */
 export function updateThreadTitle(threadId: string, title: string): void {
   const db = getDb()
   db.prepare("UPDATE threads SET title = ?, updated_at = datetime('now') WHERE thread_id = ?").run(title, threadId)
+  logger.thread.info('Thread title updated', { threadId, title })
 }
 
 /** スレッドの現在のタイトルを取得（存在しなければ null） */

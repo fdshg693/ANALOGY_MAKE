@@ -23,7 +23,12 @@
       "Bash(CAT=$(cat .claude/CURRENT_CATEGORY 2>/dev/null || echo app) && ls -1d:*)",
       "Edit(/.claude/skills/**)",
       "Edit(/.claude/skills/*/**)",
-      "Edit(/.claude/skills/meta_judge/**)"
+      "Edit(/.claude/skills/meta_judge/**)",
+      "Edit(/.claude/skills/split_plan/**)",
+      "Edit(/.claude/skills/imple_plan/**)",
+      "Edit(/.claude/skills/wrap_up/**)",
+      "Edit(/.claude/skills/write_current/**)",
+      "Edit(/.claude/skills/retrospective/**)"
     ]
   },
   "plansDirectory": "./.claude/plans",

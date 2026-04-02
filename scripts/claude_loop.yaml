@@ -1,0 +1,21 @@
+command:
+  executable: claude
+  prompt_flag: -p
+  args:
+    - --dangerously-skip-permissions
+
+steps:
+  - name: split_plan
+    prompt: /split_plan
+
+  - name: imple_plan
+    prompt: /imple_plan
+
+  - name: wrap_up
+    prompt: /wrap_up
+
+  - name: write_current
+    prompt: /write_current
+
+  - name: retrospective
+    prompt: /retrospective

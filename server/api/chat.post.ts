@@ -1,5 +1,5 @@
 import { createEventStream, readBody, createError, defineEventHandler } from 'h3'
-import { AIMessageChunk } from '@langchain/core/messages'
+import { AIMessageChunk, HumanMessage } from '@langchain/core/messages'
 import { getAnalogyAgent } from '../utils/analogy-agent'
 import { upsertThread, getThreadTitle, updateThreadTitle } from '../utils/thread-store'
 import { logger } from '../utils/logger'
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
       upsertThread(body.threadId)
 
       const stream = await agent.stream(
-        { messages: [{ role: "user", content: body.message }] },
+        { messages: [new HumanMessage(body.message)] },
         {
           configurable: { thread_id: body.threadId },
           streamMode: "messages",
@@ -35,15 +35,20 @@ export default defineEventHandler(async (event) => {
 
       let fullResponse = ''
 
-      for await (const [chunk, _metadata] of stream) {
-        if (chunk instanceof AIMessageChunk && typeof chunk.content === 'string' && chunk.content) {
+      const STREAMED_NODES = new Set(["caseSearch", "solution", "followUp"])
+
+      for await (const [chunk, metadata] of stream) {
+        if (
+          chunk instanceof AIMessageChunk &&
+          typeof chunk.content === "string" &&
+          chunk.content &&
+          STREAMED_NODES.has(metadata?.langgraph_node)
+        ) {
           fullResponse += chunk.content
           await eventStream.push({
             event: 'token',
             data: JSON.stringify({ content: chunk.content }),
           })
-        } else if (!(chunk instanceof AIMessageChunk)) {
-          logger.chat.info('Tool activity detected', { type: chunk.constructor.name, threadId: body.threadId })
         }
       }
 

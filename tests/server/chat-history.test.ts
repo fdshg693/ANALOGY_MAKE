@@ -14,12 +14,12 @@ vi.mock('h3', () => ({
 }))
 
 // Mock the analogy agent
-const mockAgent = {
+const mockGraph = {
   getState: vi.fn(),
 }
 
 vi.mock('../../server/utils/analogy-agent', () => ({
-  getAnalogyAgent: () => Promise.resolve(mockAgent),
+  getAnalogyAgent: () => Promise.resolve(mockGraph),
 }))
 
 // Import handler after mocks are set up
@@ -52,7 +52,7 @@ describe('GET /api/chat/history', () => {
   it('チェックポイントにメッセージあり → 正しいフォーマットで返却', async () => {
     vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1' })
 
-    mockAgent.getState.mockResolvedValue({
+    mockGraph.getState.mockResolvedValue({
       values: {
         messages: [
           new HumanMessage('こんにちは'),
@@ -74,7 +74,7 @@ describe('GET /api/chat/history', () => {
       ],
     })
 
-    expect(mockAgent.getState).toHaveBeenCalledWith({
+    expect(mockGraph.getState).toHaveBeenCalledWith({
       configurable: { thread_id: 'thread-1' },
     })
   })
@@ -82,7 +82,7 @@ describe('GET /api/chat/history', () => {
   it('チェックポイントが空 → 空配列を返却', async () => {
     vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1' })
 
-    mockAgent.getState.mockResolvedValue({
+    mockGraph.getState.mockResolvedValue({
       values: {},
     })
 
@@ -93,7 +93,7 @@ describe('GET /api/chat/history', () => {
   it('getState がエラー → 空配列を返却', async () => {
     vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1' })
 
-    mockAgent.getState.mockRejectedValue(new Error('Database error'))
+    mockGraph.getState.mockRejectedValue(new Error('Database error'))
 
     const result = await handler({} as any)
     expect(result).toEqual({ messages: [] })

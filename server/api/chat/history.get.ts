@@ -15,9 +15,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     const agent = await getAnalogyAgent()
-    // getState() is typed as `never` in langchain's ReactAgent (marked @internal),
-    // but works at runtime via LangGraph's CompiledStateGraph
-    const snapshot = await (agent as any).getState({ configurable: { thread_id: threadId } })
+    const snapshot = await agent.getState({ configurable: { thread_id: threadId } })
 
     const rawMessages = snapshot?.values?.messages
     if (!rawMessages || !Array.isArray(rawMessages)) {

@@ -22,12 +22,12 @@ vi.mock('h3', () => ({
 }))
 
 // Mock the analogy agent
-const mockAgent = {
+const mockGraph = {
   stream: vi.fn(),
 }
 
 vi.mock('../../server/utils/analogy-agent', () => ({
-  getAnalogyAgent: () => Promise.resolve(mockAgent),
+  getAnalogyAgent: () => Promise.resolve(mockGraph),
 }))
 
 // Mock thread-store
@@ -83,11 +83,11 @@ describe('POST /api/chat', () => {
 
       // Create an async iterable that yields AIMessageChunk pairs
       const chunks = [
-        [new AIMessageChunk({ content: 'Hello' }), {}],
-        [new AIMessageChunk({ content: ' World' }), {}],
+        [new AIMessageChunk({ content: 'Hello' }), { langgraph_node: 'caseSearch' }],
+        [new AIMessageChunk({ content: ' World' }), { langgraph_node: 'caseSearch' }],
       ]
 
-      mockAgent.stream.mockResolvedValue({
+      mockGraph.stream.mockResolvedValue({
         async *[Symbol.asyncIterator]() {
           for (const chunk of chunks) {
             yield chunk
@@ -116,13 +116,51 @@ describe('POST /api/chat', () => {
       expect(mockEventStream.close).toHaveBeenCalled()
       expect(mockEventStream.send).toHaveBeenCalled()
     })
+
+    it('abstraction ノードの出力はストリーミングされない', async () => {
+      vi.mocked(readBody).mockResolvedValue({ message: 'test', threadId: 'thread-1' })
+
+      const chunks = [
+        [new AIMessageChunk({ content: 'abstracted problem' }), { langgraph_node: 'abstraction' }],
+        [new AIMessageChunk({ content: 'Here are the cases' }), { langgraph_node: 'caseSearch' }],
+      ]
+
+      mockGraph.stream.mockResolvedValue({
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of chunks) {
+            yield chunk
+          }
+        },
+      })
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith({
+          event: 'done',
+          data: '{}',
+        })
+      })
+
+      // caseSearch node output is streamed
+      expect(mockEventStream.push).toHaveBeenCalledWith({
+        event: 'token',
+        data: JSON.stringify({ content: 'Here are the cases' }),
+      })
+
+      // abstraction node output is NOT streamed
+      const tokenCalls = mockEventStream.push.mock.calls.filter(
+        (call: any) => call[0].event === 'token'
+      )
+      expect(tokenCalls).toHaveLength(1)
+    })
   })
 
   describe('エラー系', () => {
     it('エージェント呼び出し失敗 → error イベント送信', async () => {
       vi.mocked(readBody).mockResolvedValue({ message: 'test', threadId: 'thread-1' })
 
-      mockAgent.stream.mockRejectedValue(new Error('API key invalid'))
+      mockGraph.stream.mockRejectedValue(new Error('API key invalid'))
 
       await handler({} as any)
 

@@ -22,6 +22,12 @@ export default defineEventHandler(async (event) => {
       return { messages: [] }
     }
 
+    logger.history.info('Raw messages from snapshot', {
+      threadId,
+      count: rawMessages.length,
+      types: rawMessages.map((m: any) => m?.constructor?.name ?? typeof m),
+    })
+
     const messages = rawMessages
       .filter((msg: unknown): msg is BaseMessage =>
         HumanMessage.isInstance(msg) || AIMessage.isInstance(msg)
@@ -30,6 +36,14 @@ export default defineEventHandler(async (event) => {
         role: HumanMessage.isInstance(msg) ? 'user' as const : 'assistant' as const,
         content: typeof msg.content === 'string' ? msg.content : '',
       }))
+
+    if (rawMessages.length !== messages.length) {
+      logger.history.warn('Messages filtered out', {
+        threadId,
+        rawCount: rawMessages.length,
+        filteredCount: messages.length,
+      })
+    }
 
     logger.history.info('History loaded', { threadId, messageCount: messages.length })
 

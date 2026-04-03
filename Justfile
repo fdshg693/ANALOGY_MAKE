@@ -7,6 +7,12 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 app_name := "analogy-make"
 resource_group := "rg-analogy-make"
 
+# アプリ情報表示（URL・状態・デプロイ情報）
+info:
+	az webapp show --name {{app_name}} --resource-group {{resource_group}} --query "{Name:name, ResourceGroup:resourceGroup, DefaultHostName:defaultHostName, State:state, Runtime:siteConfig.linuxFxVersion, Location:location}" --output table
+	Write-Host ""
+	Write-Host "App URL: https://{{app_name}}.azurewebsites.net"
+
 # ログ確認（リアルタイム）
 logs:
 	az webapp log tail --name {{app_name}} --resource-group {{resource_group}}

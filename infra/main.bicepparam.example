@@ -1,0 +1,10 @@
+using './main.bicep'
+
+param location = 'japaneast'
+param resourceGroupName = 'rg-analogy-make'
+param appServicePlanName = 'plan-analogy-make'
+param webAppName = 'analogy-make'
+
+// シークレット: 実際の値を記入してください
+param openaiApiKey = '<YOUR_OPENAI_API_KEY>'
+param tavilyApiKey = '<YOUR_TAVILY_API_KEY>'

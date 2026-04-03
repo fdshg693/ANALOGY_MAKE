@@ -23,5 +23,8 @@ logs
 .env.*
 !.env.example
 
+# Bicep parameter file (contains secrets)
+infra/main.bicepparam
+
 # SQLite data
 data/

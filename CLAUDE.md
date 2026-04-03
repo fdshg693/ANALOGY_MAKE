@@ -19,7 +19,8 @@
 | パッケージマネージャ | pnpm（`packageManager: pnpm@10.26.2` で固定） |
 | デプロイ先 | Azure App Service Free (F1, Linux)（Nitro preset: `node-server`） |
 | CI/CD | GitHub Actions（`.github/workflows/deploy.yml`、main push 時に自動デプロイ） |
-| コマンドランナー | just（`Justfile` で Azure CLI 操作をラップ） |
+| IaC | Bicep（`infra/` に Azure リソース定義、`just deploy-infra` で手動デプロイ） |
+| コマンドランナー | just（`Justfile` で Azure CLI 操作・インフラ管理をラップ） |
 
 ## ディレクトリ構成
 
@@ -31,7 +32,8 @@
 - `.github/workflows/` — CI/CD（GitHub Actions）
 - `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）
 - `REQUESTS/` — 機能リクエスト（分類別: `workflow/` 等）
-- `Justfile` — Azure CLI 運用コマンド（ログ確認・再起動・SSH 等）
+- `infra/` — Azure インフラ定義（Bicep テンプレート）
+- `Justfile` — Azure CLI 運用コマンド（ログ確認・再起動・SSH 等）+ インフラ管理コマンド（デプロイ・プレビュー・削除）
 - `docs/` — ドキュメント（カテゴリ別 → バージョン別管理）
   - `{category}/MASTER_PLAN.md` — カテゴリごとの概要設計
   - `{category}/DEV_NOTES.md` — 開発メモ

@@ -15,9 +15,11 @@
       "Bash(xargs grep:*)",
       "Bash(pnpm exp:*)",
       "Bash(npx nuxi:*)",
-      "Bash(echo:*)",      
+      "Bash(echo:*)",
       "Bash(bash:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Edit(/.claude/**)",
+      "Write(/.claude/**)"
     ]
   },
   "plansDirectory": "./.claude/plans",
@@ -25,7 +27,7 @@
   "hooks": {
     "PermissionRequest": [
       {
-        "matcher": "",
+        "matcher": "^(?!AskUserQuestion)",
         "hooks": [
           {
             "type": "command",

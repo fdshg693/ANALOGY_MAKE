@@ -16,6 +16,10 @@ ver14.3 で追加したテスト（`tests/server/chat-history.test.ts`）の「i
 
 `@langchain/core` のメジャーバージョンアップ時にモックが壊れていないか確認する。
 
+## 関連事例
+
+- ver14.4: `logger.ts` に `appendFileSync` を追加した際、`tests/server/thread-store.test.ts` の `node:fs` モック全体に `appendFileSync: vi.fn()` の追加が必要になった。モジュール全体をモックする際に新しいエクスポートが追加されると壊れるパターンであり、`isInstance` の件と同根の問題。
+
 ## 発生バージョン
 
 ver14.3

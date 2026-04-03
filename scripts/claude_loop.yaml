@@ -1,10 +1,14 @@
+mode:
+  auto: false
+
 command:
   executable: claude
   prompt_flag: -p
   args:
+    - --dangerously-skip-permissions
+  auto_args:
+    - --disallowedTools "AskUserQuestion"
     - >-
-      --dangerously-skip-permissions
-      --disallowedTools "AskUserQuestion"
       --append-system-prompt "you cannot ask questions to the user. so,
       whenever you think you should get human feedback, just write a file under
       `REQUESTS/AI` folder. Human will see this after you finish this step.

@@ -73,6 +73,22 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable log file output",
     )
+    parser.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="Disable desktop notification on workflow completion",
+    )
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--auto",
+        action="store_true",
+        help="Force auto (unattended) execution mode",
+    )
+    mode_group.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Force interactive execution mode",
+    )
     loop_group = parser.add_mutually_exclusive_group()
     loop_group.add_argument(
         "--max-loops",
@@ -159,7 +175,7 @@ def get_steps(config: dict[str, Any]) -> list[dict[str, Any]]:
     return steps
 
 
-def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str]]:
+def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str], list[str]]:
     command_config = config.get("command") or {}
     if not isinstance(command_config, dict):
         raise SystemExit("'command' must be a mapping when provided.")
@@ -167,13 +183,24 @@ def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str]]
     executable = command_config.get("executable", "claude")
     prompt_flag = command_config.get("prompt_flag", "-p")
     common_args = normalize_cli_args(command_config.get("args"), "command.args")
+    auto_args = normalize_cli_args(command_config.get("auto_args"), "command.auto_args")
 
     if not isinstance(executable, str) or not executable.strip():
         raise SystemExit("'command.executable' must be a non-empty string.")
     if not isinstance(prompt_flag, str) or not prompt_flag.strip():
         raise SystemExit("'command.prompt_flag' must be a non-empty string.")
 
-    return executable, prompt_flag, common_args
+    return executable, prompt_flag, common_args, auto_args
+
+
+def resolve_mode(config: dict[str, Any], cli_auto: bool, cli_interactive: bool) -> bool:
+    """Determine execution mode. Returns True for auto mode."""
+    if cli_auto:
+        return True
+    if cli_interactive:
+        return False
+    mode_config = config.get("mode") or {}
+    return bool(mode_config.get("auto", False))
 
 
 def build_command(
@@ -182,13 +209,24 @@ def build_command(
     common_args: list[str],
     step: dict[str, Any],
     log_file_path: str | None = None,
+    auto_mode: bool = False,
 ) -> list[str]:
     cmd = [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
+    system_prompts: list[str] = []
     if log_file_path:
-        cmd.extend([
-            "--append-system-prompt",
-            f"Current workflow log: {log_file_path}",
-        ])
+        system_prompts.append(f"Current workflow log: {log_file_path}")
+    if auto_mode:
+        system_prompts.append(
+            "Workflow execution mode: AUTO (unattended). "
+            "Do not use AskUserQuestion. Write requests to REQUESTS/AI/ instead."
+        )
+    else:
+        system_prompts.append(
+            "Workflow execution mode: INTERACTIVE. "
+            "You may ask the user questions when needed."
+        )
+    if system_prompts:
+        cmd.extend(["--append-system-prompt", "\n\n".join(system_prompts)])
     return cmd
 
 
@@ -278,6 +316,44 @@ def format_duration(seconds: float) -> str:
     return f"{secs}s"
 
 
+def notify_completion(title: str, message: str) -> None:
+    """Send desktop notification. Falls back to beep on failure."""
+    try:
+        _notify_toast(title, message)
+    except Exception:
+        _notify_beep(title, message)
+
+
+def _notify_toast(title: str, message: str) -> None:
+    """Windows toast notification via PowerShell."""
+    safe_title = title.replace("'", "''")
+    safe_message = message.replace("'", "''")
+    script = (
+        "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; "
+        "$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); "
+        "$text = $template.GetElementsByTagName('text'); "
+        f"$text[0].AppendChild($template.CreateTextNode('{safe_title}')) | Out-Null; "
+        f"$text[1].AppendChild($template.CreateTextNode('{safe_message}')) | Out-Null; "
+        "$toast = [Windows.UI.Notifications.ToastNotification]::new($template); "
+        "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Claude Workflow').Show($toast)"
+    )
+    result = subprocess.run(
+        ["powershell", "-Command", script],
+        capture_output=True, check=False, timeout=10,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("Toast notification failed")
+
+
+def _notify_beep(title: str, message: str) -> None:
+    """Fallback: beep + console output."""
+    print("\a")
+    print(f"\n{'=' * 40}")
+    print(f"  {title}")
+    print(f"  {message}")
+    print(f"{'=' * 40}\n")
+
+
 def main() -> int:
     args = parse_args()
     config = load_workflow(args.workflow)
@@ -288,7 +364,10 @@ def main() -> int:
             f"--start must be between 1 and {len(steps)}. Received: {args.start}"
         )
 
-    executable, prompt_flag, common_args = resolve_command_config(config)
+    executable, prompt_flag, common_args, auto_args = resolve_command_config(config)
+    auto_mode = resolve_mode(config, args.auto, args.interactive)
+    if auto_mode:
+        common_args = common_args + auto_args
     if shutil.which(executable) is None:
         raise SystemExit(f"Command not found: {executable}")
 
@@ -303,19 +382,32 @@ def main() -> int:
 
     enable_log = not args.no_log and not args.dry_run
 
+    workflow_start = time.monotonic()
+
     if enable_log:
         log_path = create_log_path(args.log_dir, args.workflow)
         with open(log_path, "w", encoding="utf-8") as log_file:
             tee = TeeWriter(log_file)
-            return _run_steps(
+            exit_code = _run_steps(
                 step_iter, steps, executable, prompt_flag, common_args,
-                cwd, args.dry_run, tee, log_path,
+                cwd, args.dry_run, tee, log_path, auto_mode,
             )
     else:
-        return _run_steps(
+        exit_code = _run_steps(
             step_iter, steps, executable, prompt_flag, common_args,
-            cwd, args.dry_run, None, None,
+            cwd, args.dry_run, None, None, auto_mode,
         )
+
+    total_duration = time.monotonic() - workflow_start
+
+    if not args.no_notify and not args.dry_run:
+        duration_str = format_duration(total_duration)
+        if exit_code == 0:
+            notify_completion("Workflow Complete", f"All steps succeeded ({duration_str})")
+        else:
+            notify_completion("Workflow Failed", f"Exit code: {exit_code} ({duration_str})")
+
+    return exit_code
 
 
 def _run_steps(
@@ -328,6 +420,7 @@ def _run_steps(
     dry_run: bool,
     tee: TeeWriter | None,
     log_path: Path | None,
+    auto_mode: bool = False,
 ) -> int:
     """Execute workflow steps with optional logging via TeeWriter."""
     total_steps = len(steps)
@@ -358,7 +451,7 @@ def _run_steps(
         ran_any_step = True
 
         log_file_path = str(log_path) if tee is not None else None
-        command = build_command(executable, prompt_flag, common_args, step, log_file_path)
+        command = build_command(executable, prompt_flag, common_args, step, log_file_path, auto_mode)
         command_str = " ".join(command)
 
         step_start = time.monotonic()

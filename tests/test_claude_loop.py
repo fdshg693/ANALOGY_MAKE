@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 import unittest
 from pathlib import Path
@@ -9,7 +10,10 @@ from unittest.mock import patch, MagicMock
 
 # Add the scripts directory to sys.path so we can import claude_loop
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from claude_loop import create_log_path, get_head_commit, format_duration, build_command, parse_args
+from claude_loop import (
+    create_log_path, get_head_commit, format_duration, build_command, parse_args,
+    notify_completion, _notify_toast, resolve_mode, resolve_command_config,
+)
 
 
 class TestCreateLogPath(unittest.TestCase):
@@ -139,8 +143,9 @@ class TestBuildCommandWithLogFilePath(unittest.TestCase):
     def test_without_log_file_path(self) -> None:
         cmd = build_command("claude", "-p", [], self._make_step(), log_file_path=None)
 
-        assert cmd == ["claude", "-p", "do stuff"]
-        assert "--append-system-prompt" not in cmd
+        assert "--append-system-prompt" in cmd
+        idx = cmd.index("--append-system-prompt")
+        assert "INTERACTIVE" in cmd[idx + 1]
 
     def test_with_log_file_path_adds_system_prompt_arg(self) -> None:
         log_path = "/logs/workflow/20260404_120000_test.log"
@@ -148,26 +153,31 @@ class TestBuildCommandWithLogFilePath(unittest.TestCase):
 
         assert "--append-system-prompt" in cmd
         idx = cmd.index("--append-system-prompt")
-        assert cmd[idx + 1] == f"Current workflow log: {log_path}"
+        prompt_value = cmd[idx + 1]
+        assert f"Current workflow log: {log_path}" in prompt_value
+        assert "INTERACTIVE" in prompt_value
 
     def test_log_file_path_appended_after_step_args(self) -> None:
         step = self._make_step(args=["--verbose"])
         log_path = "/logs/test.log"
         cmd = build_command("claude", "-p", ["--model", "opus"], step, log_file_path=log_path)
 
-        # Prompt comes first, then common args, then step args, then log args
-        assert cmd == [
+        # Prompt comes first, then common args, then step args, then system prompt
+        assert cmd[:6] == [
             "claude", "-p", "do stuff",
             "--model", "opus",
             "--verbose",
-            "--append-system-prompt",
-            f"Current workflow log: {log_path}",
         ]
+        assert cmd[6] == "--append-system-prompt"
+        assert f"Current workflow log: {log_path}" in cmd[7]
 
     def test_empty_string_log_file_path_does_not_add_args(self) -> None:
         cmd = build_command("claude", "-p", [], self._make_step(), log_file_path="")
 
-        assert "--append-system-prompt" not in cmd
+        assert "--append-system-prompt" in cmd
+        idx = cmd.index("--append-system-prompt")
+        assert "Current workflow log:" not in cmd[idx + 1]
+        assert "INTERACTIVE" in cmd[idx + 1]
 
 
 class TestParseArgsLoggingOptions(unittest.TestCase):
@@ -197,6 +207,127 @@ class TestParseArgsLoggingOptions(unittest.TestCase):
         result = self._parse(["--no-log", "--log-dir", "/tmp/logs"])
         assert result.no_log is True
         assert result.log_dir == Path("/tmp/logs")
+
+
+class TestNotifyCompletion(unittest.TestCase):
+    """Tests for notify_completion()."""
+
+    @patch("claude_loop._notify_toast")
+    def test_calls_toast_on_success(self, mock_toast: MagicMock) -> None:
+        notify_completion("title", "msg")
+        mock_toast.assert_called_once_with("title", "msg")
+
+    @patch("claude_loop._notify_beep")
+    @patch("claude_loop._notify_toast", side_effect=Exception("fail"))
+    def test_falls_back_to_beep_on_toast_failure(self, mock_toast: MagicMock, mock_beep: MagicMock) -> None:
+        notify_completion("title", "msg")
+        mock_beep.assert_called_once_with("title", "msg")
+
+    @patch("claude_loop.subprocess.run")
+    def test_toast_escapes_single_quotes(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = MagicMock(returncode=0)
+        _notify_toast("it's done", "user's workflow")
+        call_args = mock_run.call_args[0][0]
+        cmd_str = " ".join(call_args)
+        assert "it''s done" in cmd_str
+
+
+class TestResolveMode(unittest.TestCase):
+    """Tests for resolve_mode()."""
+
+    def test_default_is_interactive(self) -> None:
+        assert resolve_mode({}, cli_auto=False, cli_interactive=False) is False
+
+    def test_yaml_auto_true(self) -> None:
+        assert resolve_mode({"mode": {"auto": True}}, False, False) is True
+
+    def test_cli_auto_overrides_yaml(self) -> None:
+        assert resolve_mode({"mode": {"auto": False}}, cli_auto=True, cli_interactive=False) is True
+
+    def test_cli_interactive_overrides_yaml(self) -> None:
+        assert resolve_mode({"mode": {"auto": True}}, cli_auto=False, cli_interactive=True) is False
+
+
+class TestBuildCommandWithMode(unittest.TestCase):
+    """Tests for build_command() with auto_mode parameter."""
+
+    def _make_step(self) -> dict:
+        return {"name": "test", "prompt": "/test", "args": []}
+
+    def test_auto_mode_includes_auto_prompt(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(), auto_mode=True)
+        assert "--append-system-prompt" in cmd
+        idx = cmd.index("--append-system-prompt")
+        assert "AUTO" in cmd[idx + 1]
+
+    def test_interactive_mode_includes_interactive_prompt(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(), auto_mode=False)
+        assert "--append-system-prompt" in cmd
+        idx = cmd.index("--append-system-prompt")
+        assert "INTERACTIVE" in cmd[idx + 1]
+
+    def test_log_and_mode_combined_in_single_prompt(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(),
+                           log_file_path="/log.log", auto_mode=True)
+        assert cmd.count("--append-system-prompt") == 1
+
+
+class TestParseArgsModeOptions(unittest.TestCase):
+    """Tests for --auto / --interactive CLI options."""
+
+    def _parse(self, args: list[str]) -> argparse.Namespace:
+        with patch("sys.argv", ["claude_loop.py", *args]):
+            return parse_args()
+
+    def test_auto_default_is_false(self) -> None:
+        result = self._parse([])
+        assert result.auto is False
+
+    def test_interactive_default_is_false(self) -> None:
+        result = self._parse([])
+        assert result.interactive is False
+
+    def test_auto_flag(self) -> None:
+        result = self._parse(["--auto"])
+        assert result.auto is True
+
+    def test_interactive_flag(self) -> None:
+        result = self._parse(["--interactive"])
+        assert result.interactive is True
+
+    def test_auto_and_interactive_are_mutually_exclusive(self) -> None:
+        with self.assertRaises(SystemExit):
+            self._parse(["--auto", "--interactive"])
+
+
+class TestParseArgsNotifyOption(unittest.TestCase):
+    """Tests for --no-notify CLI option."""
+
+    def _parse(self, args: list[str]) -> argparse.Namespace:
+        with patch("sys.argv", ["claude_loop.py", *args]):
+            return parse_args()
+
+    def test_no_notify_default_is_false(self) -> None:
+        result = self._parse([])
+        assert result.no_notify is False
+
+    def test_no_notify_flag(self) -> None:
+        result = self._parse(["--no-notify"])
+        assert result.no_notify is True
+
+
+class TestResolveCommandConfigAutoArgs(unittest.TestCase):
+    """Tests for auto_args in resolve_command_config()."""
+
+    def test_returns_auto_args(self) -> None:
+        config = {"command": {"auto_args": ["--disallowedTools AskUserQuestion"]}}
+        _, _, _, auto_args = resolve_command_config(config)
+        assert "--disallowedTools" in auto_args
+
+    def test_empty_auto_args_default(self) -> None:
+        config = {"command": {}}
+        _, _, _, auto_args = resolve_command_config(config)
+        assert auto_args == []
 
 
 if __name__ == "__main__":

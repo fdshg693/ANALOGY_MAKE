@@ -1,7 +1,20 @@
 import { defineEventHandler, getQuery, createError } from 'h3'
-import { HumanMessage, AIMessage } from '@langchain/core/messages'
 import { getAnalogyAgent } from '../../utils/analogy-agent'
 import { logger } from '../../utils/logger'
+
+interface CheckpointMessage {
+  type: string
+  content: unknown
+}
+
+function isChatMessage(msg: unknown): msg is CheckpointMessage & { type: 'human' | 'ai' } {
+  return (
+    typeof msg === 'object' &&
+    msg !== null &&
+    'type' in msg &&
+    ((msg as CheckpointMessage).type === 'human' || (msg as CheckpointMessage).type === 'ai')
+  )
+}
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
@@ -22,12 +35,26 @@ export default defineEventHandler(async (event) => {
       return { messages: [] }
     }
 
+    logger.history.info('Raw messages from snapshot', {
+      threadId,
+      count: rawMessages.length,
+      types: rawMessages.map((m: any) => m?.constructor?.name ?? typeof m),
+    })
+
     const messages = rawMessages
-      .filter((msg: unknown) => msg instanceof HumanMessage || msg instanceof AIMessage)
-      .map((msg: HumanMessage | AIMessage) => ({
-        role: msg instanceof HumanMessage ? 'user' as const : 'assistant' as const,
+      .filter(isChatMessage)
+      .map((msg) => ({
+        role: msg.type === 'human' ? 'user' as const : 'assistant' as const,
         content: typeof msg.content === 'string' ? msg.content : '',
       }))
+
+    if (rawMessages.length !== messages.length) {
+      logger.history.warn('Messages filtered out', {
+        threadId,
+        rawCount: rawMessages.length,
+        filteredCount: messages.length,
+      })
+    }
 
     logger.history.info('History loaded', { threadId, messageCount: messages.length })
 

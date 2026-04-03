@@ -31,7 +31,8 @@ ssh:
 
 # ローカルビルド + プレビュー
 preview:
-	pnpm build && node .output/server/index.mjs
+	pnpm build
+	node .output/server/index.mjs
 
 # --- インフラ管理 (Bicep) ---
 

@@ -23,6 +23,32 @@ jobs:
 
       - run: pnpm build
 
+      - name: Resolve symlinks for Azure deployment
+        run: |
+          # Nitro creates symlinks in .output/server/node_modules/.nitro/ for deduplication.
+          # Azure's ZIP deployment does not preserve symlinks, so replace them with copies.
+          find .output -type l | while read -r link; do
+            target=$(readlink -f "$link")
+            if [ -z "$target" ] || [ ! -e "$target" ]; then
+              echo "WARNING: broken symlink skipped: $link"
+              continue
+            fi
+            rm "$link"
+            if [ -d "$target" ]; then
+              cp -r "$target" "$link"
+            else
+              cp "$target" "$link"
+            fi
+          done
+          # Verify no symlinks remain
+          remaining=$(find .output -type l | wc -l)
+          if [ "$remaining" -gt 0 ]; then
+            echo "ERROR: $remaining symlinks still remain in .output/"
+            find .output -type l
+            exit 1
+          fi
+          echo "All symlinks resolved successfully"
+
       - uses: azure/webapps-deploy@v3
         with:
           app-name: analogy-make

@@ -7,13 +7,14 @@ const RealDatabase = _require('better-sqlite3')
 
 vi.mock('node:fs', () => ({
   mkdirSync: vi.fn(),
+  appendFileSync: vi.fn(),
 }))
 
 let mockDb: any
 
 async function importFresh() {
   vi.resetModules()
-  vi.doMock('node:fs', () => ({ mkdirSync: vi.fn() }))
+  vi.doMock('node:fs', () => ({ mkdirSync: vi.fn(), appendFileSync: vi.fn() }))
   vi.doMock('better-sqlite3', () => ({
     default: function () { return mockDb },
   }))

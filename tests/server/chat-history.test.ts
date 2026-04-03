@@ -98,4 +98,58 @@ describe('GET /api/chat/history', () => {
     const result = await handler({} as any)
     expect(result).toEqual({ messages: [] })
   })
+
+  it('type プロパティベースの型チェックでデシリアライズ後メッセージを正しく処理', async () => {
+    vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1' })
+
+    // チェックポイントからの復元を模倣:
+    // type プロパティのみを持つプレーンオブジェクト（instanceof は通らない）
+    const mockHumanMsg = {
+      type: 'human',
+      content: 'ユーザーメッセージ',
+    }
+    const mockAIMsg = {
+      type: 'ai',
+      content: 'AI応答メッセージ',
+    }
+
+    mockGraph.getState.mockResolvedValue({
+      values: {
+        messages: [mockHumanMsg, mockAIMsg],
+      },
+    })
+
+    const result = await handler({} as any)
+
+    expect(result).toEqual({
+      messages: [
+        { role: 'user', content: 'ユーザーメッセージ' },
+        { role: 'assistant', content: 'AI応答メッセージ' },
+      ],
+    })
+  })
+
+  it('type が human/ai 以外のメッセージはフィルタリングされる', async () => {
+    vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1' })
+
+    mockGraph.getState.mockResolvedValue({
+      values: {
+        messages: [
+          { type: 'system', content: 'システムメッセージ' },
+          { type: 'human', content: 'ユーザーメッセージ' },
+          { type: 'tool', content: 'ツール結果' },
+          { type: 'ai', content: 'AI応答' },
+        ],
+      },
+    })
+
+    const result = await handler({} as any)
+
+    expect(result).toEqual({
+      messages: [
+        { role: 'user', content: 'ユーザーメッセージ' },
+        { role: 'assistant', content: 'AI応答' },
+      ],
+    })
+  })
 })

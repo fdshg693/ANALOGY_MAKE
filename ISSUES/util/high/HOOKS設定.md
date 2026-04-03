@@ -15,3 +15,6 @@
 
 ## 参考文献
 https://code.claude.com/docs/en/hooks-guide#hook-input
+
+## ステータス
+実装完了（ver1.0）。`_staged_hooks/` にファイルをステージング済み。ユーザーによる `bash _staged_hooks/install.sh` の実行待ち。詳細は `REQUESTS/AI/hooks_install_request.md` を参照。

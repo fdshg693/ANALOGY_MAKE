@@ -1,0 +1,40 @@
+{
+  "respectGitignore": true,
+  "includeGitInstructions": false,
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:js.langchain.com)",
+      "WebFetch(domain:docs.langchain.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:v03.api.js.langchain.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(xargs cat:*)",
+      "Bash(xargs ls:*)",
+      "Bash(pkill -f \"nuxt dev\")",
+      "Bash(xargs grep:*)",
+      "Bash(pnpm exp:*)",
+      "Bash(npx nuxi:*)",
+      "Bash(echo:*)",
+      "Bash(bash:*)",
+      "Bash(git:*)",
+      "Edit(/.claude/**)",
+      "Write(/.claude/**)"
+    ]
+  },
+  "plansDirectory": "./.claude/plans",
+  "autoMemoryDirectory": "C:/CodeRoot/ANALOGY_MAKE/.claude/memory",
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/permission_handler.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

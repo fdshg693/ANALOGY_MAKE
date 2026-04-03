@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from claude_loop import (
     create_log_path, get_head_commit, format_duration, build_command, parse_args,
     notify_completion, _notify_toast, resolve_mode, resolve_command_config,
+    check_uncommitted_changes, auto_commit_changes,
 )
 
 
@@ -328,6 +330,84 @@ class TestResolveCommandConfigAutoArgs(unittest.TestCase):
         config = {"command": {}}
         _, _, _, auto_args = resolve_command_config(config)
         assert auto_args == []
+
+
+class TestCheckUncommittedChanges(unittest.TestCase):
+    """Tests for check_uncommitted_changes()."""
+
+    @patch("claude_loop.subprocess.run")
+    def test_returns_true_when_changes_exist(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = MagicMock(returncode=0, stdout=" M file.txt\n")
+        result = check_uncommitted_changes(Path("/repo"))
+
+        assert result is True
+        mock_run.assert_called_once_with(
+            ["git", "status", "--porcelain"],
+            cwd=Path("/repo"), capture_output=True, text=True, check=False,
+        )
+
+    @patch("claude_loop.subprocess.run")
+    def test_returns_false_when_no_changes(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        result = check_uncommitted_changes(Path("/repo"))
+
+        assert result is False
+
+    @patch("claude_loop.subprocess.run", side_effect=FileNotFoundError("git not found"))
+    def test_returns_false_when_git_not_found(self, mock_run: MagicMock) -> None:
+        result = check_uncommitted_changes(Path("/any"))
+
+        assert result is False
+
+
+class TestAutoCommitChanges(unittest.TestCase):
+    """Tests for auto_commit_changes()."""
+
+    @patch("claude_loop.get_head_commit", return_value="abc1234")
+    @patch("claude_loop.subprocess.run")
+    def test_success_returns_commit_hash(self, mock_run: MagicMock, mock_head: MagicMock) -> None:
+        result = auto_commit_changes(Path("/repo"))
+
+        assert result == "abc1234"
+        assert mock_run.call_count == 2
+        mock_run.assert_any_call(["git", "add", "-A"], cwd=Path("/repo"), check=True)
+        mock_run.assert_any_call(
+            ["git", "commit", "-m", "auto-commit before workflow"],
+            cwd=Path("/repo"), check=True,
+        )
+
+    @patch("claude_loop.subprocess.run", side_effect=subprocess.CalledProcessError(1, "git add"))
+    def test_returns_none_on_git_add_failure(self, mock_run: MagicMock) -> None:
+        result = auto_commit_changes(Path("/repo"))
+
+        assert result is None
+
+    @patch("claude_loop.subprocess.run")
+    def test_returns_none_on_git_commit_failure(self, mock_run: MagicMock) -> None:
+        def side_effect(*args, **kwargs):
+            if args[0][1] == "commit":
+                raise subprocess.CalledProcessError(1, "git commit")
+            return MagicMock(returncode=0)
+        mock_run.side_effect = side_effect
+        result = auto_commit_changes(Path("/repo"))
+
+        assert result is None
+
+
+class TestParseArgsAutoCommitBefore(unittest.TestCase):
+    """Tests for --auto-commit-before CLI option."""
+
+    def _parse(self, args: list[str]) -> argparse.Namespace:
+        with patch("sys.argv", ["claude_loop.py", *args]):
+            return parse_args()
+
+    def test_default_is_false(self) -> None:
+        result = self._parse([])
+        assert result.auto_commit_before is False
+
+    def test_flag_sets_true(self) -> None:
+        result = self._parse(["--auto-commit-before"])
+        assert result.auto_commit_before is True
 
 
 if __name__ == "__main__":

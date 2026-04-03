@@ -78,6 +78,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable desktop notification on workflow completion",
     )
+    parser.add_argument(
+        "--auto-commit-before",
+        action="store_true",
+        help="Automatically commit uncommitted changes before starting the workflow",
+    )
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--auto",
@@ -304,6 +309,28 @@ def get_head_commit(cwd: Path) -> str | None:
         return None
 
 
+def check_uncommitted_changes(cwd: Path) -> bool:
+    """Check if there are uncommitted changes in the working directory."""
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd, capture_output=True, text=True, check=False,
+        )
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except FileNotFoundError:
+        return False
+
+
+def auto_commit_changes(cwd: Path) -> str | None:
+    """Stage all changes and commit. Returns the new commit hash or None on failure."""
+    try:
+        subprocess.run(["git", "add", "-A"], cwd=cwd, check=True)
+        subprocess.run(["git", "commit", "-m", "auto-commit before workflow"], cwd=cwd, check=True)
+        return get_head_commit(cwd)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
 def format_duration(seconds: float) -> str:
     """Format seconds into human-readable duration string."""
     total = int(seconds)
@@ -375,6 +402,21 @@ def main() -> int:
     if not cwd.is_dir():
         raise SystemExit(f"Working directory not found: {cwd}")
 
+    uncommitted_status: str | None = None
+    if not args.dry_run:
+        if check_uncommitted_changes(cwd):
+            if args.auto_commit_before:
+                commit_hash = auto_commit_changes(cwd)
+                if commit_hash:
+                    uncommitted_status = f"auto-committed ({commit_hash})"
+                    print(f"Auto-committed uncommitted changes: {commit_hash}")
+                else:
+                    uncommitted_status = "auto-commit failed, proceeding with uncommitted changes"
+                    print("WARNING: Auto-commit failed. Proceeding with uncommitted changes.", file=sys.stderr)
+            else:
+                uncommitted_status = "uncommitted changes detected (no --auto-commit-before)"
+                print("WARNING: Uncommitted changes detected. Consider committing before running the workflow.", file=sys.stderr)
+
     if args.max_step_runs is not None:
         step_iter = iter_steps_for_step_limit(steps, args.start - 1, args.max_step_runs)
     else:
@@ -391,11 +433,13 @@ def main() -> int:
             exit_code = _run_steps(
                 step_iter, steps, executable, prompt_flag, common_args,
                 cwd, args.dry_run, tee, log_path, auto_mode,
+                uncommitted_status,
             )
     else:
         exit_code = _run_steps(
             step_iter, steps, executable, prompt_flag, common_args,
             cwd, args.dry_run, None, None, auto_mode,
+            uncommitted_status,
         )
 
     total_duration = time.monotonic() - workflow_start
@@ -421,6 +465,7 @@ def _run_steps(
     tee: TeeWriter | None,
     log_path: Path | None,
     auto_mode: bool = False,
+    uncommitted_status: str | None = None,
 ) -> int:
     """Execute workflow steps with optional logging via TeeWriter."""
     total_steps = len(steps)
@@ -442,6 +487,8 @@ def _run_steps(
         _out(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         if start_commit:
             _out(f"Commit (start): {start_commit}")
+        if uncommitted_status:
+            _out(f"Uncommitted: {uncommitted_status}")
         _out("=====================================")
 
     ran_any_step = False

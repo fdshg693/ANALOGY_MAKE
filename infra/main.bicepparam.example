@@ -5,5 +5,6 @@ param resourceGroupName = 'rg-analogy-make'
 param appServicePlanName = 'plan-analogy-make'
 param webAppName = 'analogy-make'
 
-// openaiApiKey, tavilyApiKey は @secure() のためここに記載しない
-// デプロイ時に Azure CLI がプロンプトで入力を求める
+// シークレット: 実際の値を記入してください
+param openaiApiKey = '<YOUR_OPENAI_API_KEY>'
+param tavilyApiKey = '<YOUR_TAVILY_API_KEY>'

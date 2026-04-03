@@ -1,3 +1,6 @@
+# Windows: PowerShell をシェルとして使用
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
 # Azure App Service 操作コマンド
 # 前提: az login 済み
 
@@ -28,17 +31,11 @@ preview:
 
 # インフラのデプロイ（初回作成 / 更新）
 deploy-infra:
-	az deployment sub create \
-	  --location japaneast \
-	  --template-file infra/main.bicep \
-	  --parameters infra/main.bicepparam
+	az deployment sub create --location japaneast --template-file infra/main.bicep --parameters infra/main.bicepparam
 
 # インフラの変更プレビュー（what-if）
 preview-infra:
-	az deployment sub what-if \
-	  --location japaneast \
-	  --template-file infra/main.bicep \
-	  --parameters infra/main.bicepparam
+	az deployment sub what-if --location japaneast --template-file infra/main.bicep --parameters infra/main.bicepparam
 
 # インフラの削除（Resource Group ごと）
 destroy-infra:
@@ -46,7 +43,4 @@ destroy-infra:
 
 # Publish Profile の取得（GitHub Actions 用）
 get-publish-profile:
-	az webapp deployment list-publishing-profiles \
-	  --name {{app_name}} \
-	  --resource-group {{resource_group}} \
-	  --xml
+	az webapp deployment list-publishing-profiles --name {{app_name}} --resource-group {{resource_group}} --xml

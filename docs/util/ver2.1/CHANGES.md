@@ -54,13 +54,13 @@ command:
 
 #### 新規関数
 
-- **`resolve_mode(config, cli_auto, cli_interactive)`**: 実行モード判定
-  - 優先順位: CLI フラグ > YAML 設定 > デフォルト（`False` = interactive）
+- **`resolve_mode(config, cli_auto)`**: 実行モード判定
+  - 優先順位: CLI `--auto` フラグ > YAML 設定 > デフォルト（`False`）
 - **`resolve_command_config()`**: 戻り値を 3 要素から 4 要素に拡張（`auto_args` 追加）
 
 #### CLI オプション
 
-- `--auto` / `--interactive`: 相互排他グループとして追加
+- `--auto`: 自動実行モード強制フラグとして追加
 - `main()` 内で `auto_mode=True` 時に `common_args + auto_args` を結合
 
 ### 3. モード伝搬（`scripts/claude_loop.py`）
@@ -68,8 +68,7 @@ command:
 各ステップ実行時に実行モード情報をエージェントに伝達。
 
 - **`build_command()`**: `auto_mode` パラメータを追加
-  - AUTO モード: `"Workflow execution mode: AUTO (unattended). Do not use AskUserQuestion..."`
-  - INTERACTIVE モード: `"Workflow execution mode: INTERACTIVE. You may ask the user questions..."`
+  - AUTO モード時: `"Workflow execution mode: AUTO (unattended). Do not use AskUserQuestion..."`
 - ログパスとモード情報を **単一の `--append-system-prompt`** に結合（改行区切り）
 - `_run_steps()` に `auto_mode` パラメータを追加して伝搬
 
@@ -81,12 +80,12 @@ command:
 |---|---|---|
 | `TestNotifyCompletion` | 3 | toast 成功・beep フォールバック・クォートエスケープ |
 | `TestResolveMode` | 4 | デフォルト・YAML 設定・CLI オーバーライド優先順位 |
-| `TestBuildCommandWithMode` | 3 | AUTO/INTERACTIVE プロンプト注入・単一 `--append-system-prompt` 結合 |
-| `TestParseArgsModeOptions` | 5 | `--auto`/`--interactive` フラグ・相互排他 |
+| `TestBuildCommandWithMode` | 3 | AUTO プロンプト注入・非AUTO時プロンプトなし・単一 `--append-system-prompt` 結合 |
+| `TestParseArgsAutoOption` | 2 | `--auto` フラグ |
 | `TestParseArgsNotifyOption` | 2 | `--no-notify` フラグ |
 | `TestResolveCommandConfigAutoArgs` | 2 | `auto_args` 抽出・デフォルト空リスト |
 
-既存テスト（`TestBuildCommandWithLogFilePath`）も更新: `build_command()` がモード情報を常に注入するようになったため、`--append-system-prompt` の存在と `INTERACTIVE` テキストの検証に変更。
+既存テスト（`TestBuildCommandWithLogFilePath`）も更新: `build_command()` のシグネチャ変更（`auto_mode` パラメータ追加）に伴い、非AUTOモード時に `--append-system-prompt` が付与されないことの検証に変更。
 
 ### 5. retrospective SKILL の判断基準変更（`.claude/SKILLS/retrospective/SKILL.md`）
 

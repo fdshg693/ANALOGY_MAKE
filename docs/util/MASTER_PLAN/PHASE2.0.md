@@ -144,7 +144,7 @@ def notify_simple(title: str, message: str):
 
 ```yaml
 mode:
-  auto: false  # true: スクリプト自動実行モード / false: 手動実行モード
+  auto: false  # true: 自動実行モード（デフォルト: false）
 
 command:
   executable: claude
@@ -163,25 +163,22 @@ steps:
 **動作**:
 - `mode.auto: true` の場合: `command.args` + `command.auto_args` を結合
 - `mode.auto: false` の場合: `command.args` のみ使用
-- CLI オプション `--auto` / `--interactive` で YAML 設定を上書き可能
+- CLI オプション `--auto` で YAML 設定を上書き可能
 
 #### SKILL 側からのモード参照
 
 ワークフローの実行モードを `--append-system-prompt` 経由で各エージェントに伝達する:
 
 ```python
-mode_prompt = (
-    "Workflow execution mode: AUTO (unattended). "
-    "Do not use AskUserQuestion. Write requests to REQUESTS/AI/ instead."
-    if auto_mode else
-    "Workflow execution mode: INTERACTIVE. "
-    "You may ask the user questions when needed."
-)
+if auto_mode:
+    mode_prompt = (
+        "Workflow execution mode: AUTO (unattended). "
+        "Do not use AskUserQuestion. Write requests to REQUESTS/AI/ instead."
+    )
 ```
 
 各 SKILL は `--append-system-prompt` で渡されたモード情報に基づいて動的に振る舞いを変えられる:
-- **AUTO**: ユーザー質問禁止、`REQUESTS/AI/` への書き出し、plan_review_agent のみで判断
-- **INTERACTIVE**: ユーザーへの質問可能、対話的な確認
+- **AUTO モード時**: ユーザー質問禁止、`REQUESTS/AI/` への書き出し、plan_review_agent のみで判断
 
 ### 5. CLI オプションの整理
 
@@ -195,7 +192,6 @@ python scripts/claude_loop.py --no-notify                # 通知無効化
 
 # モード制御
 python scripts/claude_loop.py --auto                     # 自動実行モード強制
-python scripts/claude_loop.py --interactive              # 対話モード強制
 
 # コミット制御
 python scripts/claude_loop.py --auto-commit-before       # 開始前に未コミット変更を自動コミット

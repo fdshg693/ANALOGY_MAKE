@@ -171,33 +171,25 @@ def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str],
 ### 2.3 `resolve_mode()` 関数の追加
 
 ```python
-def resolve_mode(config: dict[str, Any], cli_auto: bool, cli_interactive: bool) -> bool:
+def resolve_mode(config: dict[str, Any], cli_auto: bool) -> bool:
     """Determine execution mode. Returns True for auto mode."""
     if cli_auto:
         return True
-    if cli_interactive:
-        return False
     mode_config = config.get("mode") or {}
     return bool(mode_config.get("auto", False))
 ```
 
-**優先順位**: CLI `--auto`/`--interactive` > YAML `mode.auto`
+**優先順位**: CLI `--auto` > YAML `mode.auto`
 
-### 2.4 CLI オプション `--auto` / `--interactive` の追加
+### 2.4 CLI オプション `--auto` の追加
 
-`parse_args()` に排他グループとして追加:
+`parse_args()` に追加:
 
 ```python
-mode_group = parser.add_mutually_exclusive_group()
-mode_group.add_argument(
+parser.add_argument(
     "--auto",
     action="store_true",
     help="Force auto (unattended) execution mode",
-)
-mode_group.add_argument(
-    "--interactive",
-    action="store_true",
-    help="Force interactive execution mode",
 )
 ```
 
@@ -205,7 +197,7 @@ mode_group.add_argument(
 
 ```python
 executable, prompt_flag, common_args, auto_args = resolve_command_config(config)
-auto_mode = resolve_mode(config, args.auto, args.interactive)
+auto_mode = resolve_mode(config, args.auto)
 
 if auto_mode:
     common_args = common_args + auto_args
@@ -232,11 +224,6 @@ def build_command(
         system_prompts.append(
             "Workflow execution mode: AUTO (unattended). "
             "Do not use AskUserQuestion. Write requests to REQUESTS/AI/ instead."
-        )
-    else:
-        system_prompts.append(
-            "Workflow execution mode: INTERACTIVE. "
-            "You may ask the user questions when needed."
         )
     if system_prompts:
         cmd.extend(["--append-system-prompt", "\n\n".join(system_prompts)])
@@ -303,17 +290,14 @@ class TestNotifyCompletion(unittest.TestCase):
 class TestResolveMode(unittest.TestCase):
     """Tests for resolve_mode()."""
 
-    def test_default_is_interactive(self):
-        assert resolve_mode({}, cli_auto=False, cli_interactive=False) is False
+    def test_default_is_not_auto(self):
+        assert resolve_mode({}, cli_auto=False) is False
 
     def test_yaml_auto_true(self):
-        assert resolve_mode({"mode": {"auto": True}}, False, False) is True
+        assert resolve_mode({"mode": {"auto": True}}, cli_auto=False) is True
 
     def test_cli_auto_overrides_yaml(self):
-        assert resolve_mode({"mode": {"auto": False}}, cli_auto=True, cli_interactive=False) is True
-
-    def test_cli_interactive_overrides_yaml(self):
-        assert resolve_mode({"mode": {"auto": True}}, cli_auto=False, cli_interactive=True) is False
+        assert resolve_mode({"mode": {"auto": False}}, cli_auto=True) is True
 ```
 
 ### 3.3 `build_command()` のモード伝達テスト
@@ -331,11 +315,9 @@ class TestBuildCommandWithMode(unittest.TestCase):
         idx = cmd.index("--append-system-prompt")
         assert "AUTO" in cmd[idx + 1]
 
-    def test_interactive_mode_includes_interactive_prompt(self):
+    def test_non_auto_mode_has_no_mode_prompt(self):
         cmd = build_command("claude", "-p", [], self._make_step(), auto_mode=False)
-        assert "--append-system-prompt" in cmd
-        idx = cmd.index("--append-system-prompt")
-        assert "INTERACTIVE" in cmd[idx + 1]
+        assert "--append-system-prompt" not in cmd
 
     def test_log_and_mode_combined_in_single_prompt(self):
         cmd = build_command("claude", "-p", [], self._make_step(),
@@ -347,8 +329,8 @@ class TestBuildCommandWithMode(unittest.TestCase):
 ### 3.4 CLI オプションテスト
 
 ```python
-class TestParseArgsModeOptions(unittest.TestCase):
-    """Tests for --auto / --interactive CLI options."""
+class TestParseArgsAutoOption(unittest.TestCase):
+    """Tests for --auto CLI option."""
 
     def _parse(self, args):
         with patch("sys.argv", ["claude_loop.py", *args]):
@@ -358,21 +340,9 @@ class TestParseArgsModeOptions(unittest.TestCase):
         result = self._parse([])
         assert result.auto is False
 
-    def test_interactive_default_is_false(self):
-        result = self._parse([])
-        assert result.interactive is False
-
     def test_auto_flag(self):
         result = self._parse(["--auto"])
         assert result.auto is True
-
-    def test_interactive_flag(self):
-        result = self._parse(["--interactive"])
-        assert result.interactive is True
-
-    def test_auto_and_interactive_are_mutually_exclusive(self):
-        with self.assertRaises(SystemExit):
-            self._parse(["--auto", "--interactive"])
 
 
 class TestParseArgsNotifyOption(unittest.TestCase):
@@ -410,33 +380,27 @@ class TestResolveCommandConfigAutoArgs(unittest.TestCase):
 
 ## 4. 既存テストへの影響
 
-`TestBuildCommandWithLogFilePath` の既存テストは `build_command()` のシグネチャ変更（`auto_mode` パラメータ追加）の影響を受ける。`auto_mode` のデフォルトは `False` にするため、既存テストは **モード情報の system prompt が追加される** 点で出力が変わる。
+`TestBuildCommandWithLogFilePath` の既存テストは `build_command()` のシグネチャ変更（`auto_mode` パラメータ追加）の影響を受ける。`auto_mode` のデフォルトは `False` にするため、非autoモードでは `--append-system-prompt` が付与されなくなる点で出力が変わる。
 
-対応: 既存テストの期待値を更新する。`auto_mode=False` でも `INTERACTIVE` のモード情報が `--append-system-prompt` に含まれるようになるため、`--append-system-prompt` の有無や内容の検証を修正する。
+対応: 既存テストの期待値を更新する。`auto_mode=False` の場合、モード情報の system prompt は付与されないため、`--append-system-prompt` はログパスがある場合のみ存在する。
 
 具体的な影響箇所と更新後のアサーション:
 
-- `test_without_log_file_path`: `--append-system-prompt` が含まれるようになる
+- `test_without_log_file_path`: ログパスなし・非autoモード → `--append-system-prompt` は含まれない
   ```python
-  assert "--append-system-prompt" in cmd
-  idx = cmd.index("--append-system-prompt")
-  assert "INTERACTIVE" in cmd[idx + 1]
+  assert "--append-system-prompt" not in cmd
   ```
-- `test_empty_string_log_file_path_does_not_add_args`: log_file_path="" でもモード情報は付与される
+- `test_empty_string_log_file_path_does_not_add_args`: log_file_path="" かつ非autoモード → `--append-system-prompt` は含まれない
   ```python
-  assert "--append-system-prompt" in cmd
-  idx = cmd.index("--append-system-prompt")
-  assert "Current workflow log:" not in cmd[idx + 1]  # ログパスは含まれない
-  assert "INTERACTIVE" in cmd[idx + 1]  # モード情報は含まれる
+  assert "--append-system-prompt" not in cmd
   ```
-- `test_with_log_file_path_adds_system_prompt_arg`: system prompt の内容にモード情報が追加される
+- `test_with_log_file_path_adds_system_prompt_arg`: ログパスのみ system prompt に含まれる
   ```python
   idx = cmd.index("--append-system-prompt")
   prompt_value = cmd[idx + 1]
   assert f"Current workflow log: {log_path}" in prompt_value
-  assert "INTERACTIVE" in prompt_value
   ```
-- `test_log_file_path_appended_after_step_args`: コマンド配列の末尾 2 要素が `--append-system-prompt` + 結合文字列
+- `test_log_file_path_appended_after_step_args`: コマンド配列の末尾 2 要素が `--append-system-prompt` + ログパス文字列
 
 ### import 文の更新
 
@@ -454,7 +418,7 @@ from claude_loop import (
 1. `claude_loop.yaml` の構造変更（`mode` セクション・`auto_args` 分離）
 2. `claude_loop.py` に `resolve_mode()` 追加
 3. `resolve_command_config()` を拡張（`auto_args` 返却）
-4. `parse_args()` に `--auto`/`--interactive`/`--no-notify` 追加
+4. `parse_args()` に `--auto`/`--no-notify` 追加
 5. `build_command()` を拡張（`auto_mode` パラメータ、system prompt 統合）
 6. `_run_steps()` に `auto_mode` パラメータを追加し、`build_command()` に引き渡す
 7. `main()` にモード解決・引数結合ロジック追加（`_run_steps()` への `auto_mode` 渡し含む）

@@ -145,9 +145,7 @@ class TestBuildCommandWithLogFilePath(unittest.TestCase):
     def test_without_log_file_path(self) -> None:
         cmd = build_command("claude", "-p", [], self._make_step(), log_file_path=None)
 
-        assert "--append-system-prompt" in cmd
-        idx = cmd.index("--append-system-prompt")
-        assert "INTERACTIVE" in cmd[idx + 1]
+        assert "--append-system-prompt" not in cmd
 
     def test_with_log_file_path_adds_system_prompt_arg(self) -> None:
         log_path = "/logs/workflow/20260404_120000_test.log"
@@ -157,7 +155,6 @@ class TestBuildCommandWithLogFilePath(unittest.TestCase):
         idx = cmd.index("--append-system-prompt")
         prompt_value = cmd[idx + 1]
         assert f"Current workflow log: {log_path}" in prompt_value
-        assert "INTERACTIVE" in prompt_value
 
     def test_log_file_path_appended_after_step_args(self) -> None:
         step = self._make_step(args=["--verbose"])
@@ -176,10 +173,7 @@ class TestBuildCommandWithLogFilePath(unittest.TestCase):
     def test_empty_string_log_file_path_does_not_add_args(self) -> None:
         cmd = build_command("claude", "-p", [], self._make_step(), log_file_path="")
 
-        assert "--append-system-prompt" in cmd
-        idx = cmd.index("--append-system-prompt")
-        assert "Current workflow log:" not in cmd[idx + 1]
-        assert "INTERACTIVE" in cmd[idx + 1]
+        assert "--append-system-prompt" not in cmd
 
 
 class TestParseArgsLoggingOptions(unittest.TestCase):
@@ -237,17 +231,14 @@ class TestNotifyCompletion(unittest.TestCase):
 class TestResolveMode(unittest.TestCase):
     """Tests for resolve_mode()."""
 
-    def test_default_is_interactive(self) -> None:
-        assert resolve_mode({}, cli_auto=False, cli_interactive=False) is False
+    def test_default_is_not_auto(self) -> None:
+        assert resolve_mode({}, cli_auto=False) is False
 
     def test_yaml_auto_true(self) -> None:
-        assert resolve_mode({"mode": {"auto": True}}, False, False) is True
+        assert resolve_mode({"mode": {"auto": True}}, cli_auto=False) is True
 
     def test_cli_auto_overrides_yaml(self) -> None:
-        assert resolve_mode({"mode": {"auto": False}}, cli_auto=True, cli_interactive=False) is True
-
-    def test_cli_interactive_overrides_yaml(self) -> None:
-        assert resolve_mode({"mode": {"auto": True}}, cli_auto=False, cli_interactive=True) is False
+        assert resolve_mode({"mode": {"auto": False}}, cli_auto=True) is True
 
 
 class TestBuildCommandWithMode(unittest.TestCase):
@@ -262,11 +253,9 @@ class TestBuildCommandWithMode(unittest.TestCase):
         idx = cmd.index("--append-system-prompt")
         assert "AUTO" in cmd[idx + 1]
 
-    def test_interactive_mode_includes_interactive_prompt(self) -> None:
+    def test_non_auto_mode_has_no_mode_prompt(self) -> None:
         cmd = build_command("claude", "-p", [], self._make_step(), auto_mode=False)
-        assert "--append-system-prompt" in cmd
-        idx = cmd.index("--append-system-prompt")
-        assert "INTERACTIVE" in cmd[idx + 1]
+        assert "--append-system-prompt" not in cmd
 
     def test_log_and_mode_combined_in_single_prompt(self) -> None:
         cmd = build_command("claude", "-p", [], self._make_step(),
@@ -274,8 +263,8 @@ class TestBuildCommandWithMode(unittest.TestCase):
         assert cmd.count("--append-system-prompt") == 1
 
 
-class TestParseArgsModeOptions(unittest.TestCase):
-    """Tests for --auto / --interactive CLI options."""
+class TestParseArgsAutoOption(unittest.TestCase):
+    """Tests for --auto CLI option."""
 
     def _parse(self, args: list[str]) -> argparse.Namespace:
         with patch("sys.argv", ["claude_loop.py", *args]):
@@ -285,21 +274,9 @@ class TestParseArgsModeOptions(unittest.TestCase):
         result = self._parse([])
         assert result.auto is False
 
-    def test_interactive_default_is_false(self) -> None:
-        result = self._parse([])
-        assert result.interactive is False
-
     def test_auto_flag(self) -> None:
         result = self._parse(["--auto"])
         assert result.auto is True
-
-    def test_interactive_flag(self) -> None:
-        result = self._parse(["--interactive"])
-        assert result.interactive is True
-
-    def test_auto_and_interactive_are_mutually_exclusive(self) -> None:
-        with self.assertRaises(SystemExit):
-            self._parse(["--auto", "--interactive"])
 
 
 class TestParseArgsNotifyOption(unittest.TestCase):

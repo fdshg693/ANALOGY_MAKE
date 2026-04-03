@@ -13,8 +13,8 @@
 ### 実装内容
 
 1. **ワークフロー完了通知**: Windows トースト通知（PowerShell 経由）+ ビープ音フォールバック。`--no-notify` CLI オプション
-2. **自動実行モード設定ファイル化**: YAML `mode` セクション + `auto_args` 分離。`--auto`/`--interactive` CLI オプション。`resolve_mode()` で優先順位判定
-3. **モード伝搬**: `build_command()` で AUTO/INTERACTIVE モード情報を `--append-system-prompt` に注入。ログパスとモード情報を単一プロンプトに結合
+2. **自動実行モード設定ファイル化**: YAML `mode` セクション + `auto_args` 分離。`--auto` CLI オプション。`resolve_mode()` で優先順位判定
+3. **モード伝搬**: `build_command()` で AUTO モード情報を `--append-system-prompt` に注入。ログパスとモード情報を単一プロンプトに結合
 4. **テスト**: 19 テスト追加（6 クラス）、全パス
 5. **retrospective SKILL 判断基準の緩和**: 即時適用可能な範囲を拡大（ver2.0 retrospective で適用）
 

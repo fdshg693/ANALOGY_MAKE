@@ -83,16 +83,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Automatically commit uncommitted changes before starting the workflow",
     )
-    mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument(
+    parser.add_argument(
         "--auto",
         action="store_true",
         help="Force auto (unattended) execution mode",
-    )
-    mode_group.add_argument(
-        "--interactive",
-        action="store_true",
-        help="Force interactive execution mode",
     )
     loop_group = parser.add_mutually_exclusive_group()
     loop_group.add_argument(
@@ -198,12 +192,10 @@ def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str],
     return executable, prompt_flag, common_args, auto_args
 
 
-def resolve_mode(config: dict[str, Any], cli_auto: bool, cli_interactive: bool) -> bool:
+def resolve_mode(config: dict[str, Any], cli_auto: bool) -> bool:
     """Determine execution mode. Returns True for auto mode."""
     if cli_auto:
         return True
-    if cli_interactive:
-        return False
     mode_config = config.get("mode") or {}
     return bool(mode_config.get("auto", False))
 
@@ -224,11 +216,6 @@ def build_command(
         system_prompts.append(
             "Workflow execution mode: AUTO (unattended). "
             "Do not use AskUserQuestion. Write requests to REQUESTS/AI/ instead."
-        )
-    else:
-        system_prompts.append(
-            "Workflow execution mode: INTERACTIVE. "
-            "You may ask the user questions when needed."
         )
     if system_prompts:
         cmd.extend(["--append-system-prompt", "\n\n".join(system_prompts)])
@@ -392,7 +379,7 @@ def main() -> int:
         )
 
     executable, prompt_flag, common_args, auto_args = resolve_command_config(config)
-    auto_mode = resolve_mode(config, args.auto, args.interactive)
+    auto_mode = resolve_mode(config, args.auto)
     if auto_mode:
         common_args = common_args + auto_args
     if shutil.which(executable) is None:

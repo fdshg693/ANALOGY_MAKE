@@ -1,5 +1,5 @@
 import { defineEventHandler, getQuery, createError } from 'h3'
-import { HumanMessage, AIMessage } from '@langchain/core/messages'
+import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages'
 import { getAnalogyAgent } from '../../utils/analogy-agent'
 import { logger } from '../../utils/logger'
 
@@ -23,9 +23,11 @@ export default defineEventHandler(async (event) => {
     }
 
     const messages = rawMessages
-      .filter((msg: unknown) => msg instanceof HumanMessage || msg instanceof AIMessage)
-      .map((msg: HumanMessage | AIMessage) => ({
-        role: msg instanceof HumanMessage ? 'user' as const : 'assistant' as const,
+      .filter((msg: unknown): msg is BaseMessage =>
+        HumanMessage.isInstance(msg) || AIMessage.isInstance(msg)
+      )
+      .map((msg) => ({
+        role: HumanMessage.isInstance(msg) ? 'user' as const : 'assistant' as const,
         content: typeof msg.content === 'string' ? msg.content : '',
       }))
 

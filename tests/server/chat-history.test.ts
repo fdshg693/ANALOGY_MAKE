@@ -98,4 +98,37 @@ describe('GET /api/chat/history', () => {
     const result = await handler({} as any)
     expect(result).toEqual({ messages: [] })
   })
+
+  it('isInstance ベースの型チェックでデシリアライズ後メッセージを正しく処理', async () => {
+    vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1' })
+
+    // チェックポイントからの復元を模倣:
+    // isInstance が要求するプロパティを持つが、instanceof は通らないオブジェクト
+    const SYM = Symbol.for('langchain.message')
+    const mockHumanMsg = {
+      [SYM]: true,
+      type: 'human',
+      content: 'ユーザーメッセージ',
+    }
+    const mockAIMsg = {
+      [SYM]: true,
+      type: 'ai',
+      content: 'AI応答メッセージ',
+    }
+
+    mockGraph.getState.mockResolvedValue({
+      values: {
+        messages: [mockHumanMsg, mockAIMsg],
+      },
+    })
+
+    const result = await handler({} as any)
+
+    expect(result).toEqual({
+      messages: [
+        { role: 'user', content: 'ユーザーメッセージ' },
+        { role: 'assistant', content: 'AI応答メッセージ' },
+      ],
+    })
+  })
 })

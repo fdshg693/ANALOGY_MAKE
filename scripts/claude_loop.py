@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import io
 import shlex
 import shutil
 import subprocess
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +61,17 @@ def parse_args() -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Print commands without running them",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=Path("logs/workflow"),
+        help="Directory for workflow log files (default: logs/workflow/)",
+    )
+    parser.add_argument(
+        "--no-log",
+        action="store_true",
+        help="Disable log file output",
     )
     loop_group = parser.add_mutually_exclusive_group()
     loop_group.add_argument(
@@ -167,8 +181,15 @@ def build_command(
     prompt_flag: str,
     common_args: list[str],
     step: dict[str, Any],
+    log_file_path: str | None = None,
 ) -> list[str]:
-    return [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
+    cmd = [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
+    if log_file_path:
+        cmd.extend([
+            "--append-system-prompt",
+            f"Current workflow log: {log_file_path}",
+        ])
+    return cmd
 
 
 def print_step_header(current_index: int, total_steps: int, name: str) -> None:
@@ -200,6 +221,63 @@ def iter_steps_for_step_limit(
         step_index = (step_index + 1) % len(steps)
 
 
+def create_log_path(log_dir: Path, workflow_path: Path) -> Path:
+    """Generate timestamped log file path."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    workflow_name = workflow_path.stem  # e.g. "claude_loop"
+    log_dir = log_dir.resolve()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir / f"{timestamp}_{workflow_name}.log"
+
+
+class TeeWriter:
+    """Write to both a file and stdout simultaneously."""
+
+    def __init__(self, log_file: io.TextIOWrapper):
+        self.log_file = log_file
+
+    def write_line(self, line: str) -> None:
+        """Write a line to both stdout and log file."""
+        print(line)
+        self.log_file.write(line + "\n")
+        self.log_file.flush()
+
+    def write_process_output(self, process: subprocess.Popen) -> int:
+        """Stream process stdout/stderr to both stdout and log file.
+        Returns the process exit code."""
+        for raw_line in process.stdout:
+            line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
+            print(line)
+            self.log_file.write(line + "\n")
+            self.log_file.flush()
+        process.wait()
+        return process.returncode
+
+
+def get_head_commit(cwd: Path) -> str | None:
+    """Get current HEAD commit hash, or None if not a git repo."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=cwd, capture_output=True, text=True, check=False,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except FileNotFoundError:
+        return None
+
+
+def format_duration(seconds: float) -> str:
+    """Format seconds into human-readable duration string."""
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+    if minutes > 0:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
 def main() -> int:
     args = parse_args()
     config = load_workflow(args.workflow)
@@ -223,29 +301,146 @@ def main() -> int:
     else:
         step_iter = iter_steps_for_loop_limit(steps, args.start - 1, args.max_loops)
 
+    enable_log = not args.no_log and not args.dry_run
+
+    if enable_log:
+        log_path = create_log_path(args.log_dir, args.workflow)
+        with open(log_path, "w", encoding="utf-8") as log_file:
+            tee = TeeWriter(log_file)
+            return _run_steps(
+                step_iter, steps, executable, prompt_flag, common_args,
+                cwd, args.dry_run, tee, log_path,
+            )
+    else:
+        return _run_steps(
+            step_iter, steps, executable, prompt_flag, common_args,
+            cwd, args.dry_run, None, None,
+        )
+
+
+def _run_steps(
+    step_iter,
+    steps: list[dict[str, Any]],
+    executable: str,
+    prompt_flag: str,
+    common_args: list[str],
+    cwd: Path,
+    dry_run: bool,
+    tee: TeeWriter | None,
+    log_path: Path | None,
+) -> int:
+    """Execute workflow steps with optional logging via TeeWriter."""
+    total_steps = len(steps)
+    workflow_start = time.monotonic()
+    start_time = datetime.now()
+    start_commit = get_head_commit(cwd)
+    completed_count = 0
+
+    def _out(line: str) -> None:
+        if tee is not None:
+            tee.write_line(line)
+        else:
+            print(line)
+
+    # --- Workflow header ---
+    if tee is not None:
+        _out("=====================================")
+        _out(f"Workflow: {log_path.stem.split('_', 2)[-1] if log_path else 'unknown'}")
+        _out(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if start_commit:
+            _out(f"Commit (start): {start_commit}")
+        _out("=====================================")
+
     ran_any_step = False
+    prev_commit = start_commit
+
     for step, absolute_index in step_iter:
         ran_any_step = True
-        command = build_command(executable, prompt_flag, common_args, step)
-        print_step_header(absolute_index, len(steps), step["name"])
-        print(f"$ {' '.join(command)}")
 
-        if args.dry_run:
+        log_file_path = str(log_path) if tee is not None else None
+        command = build_command(executable, prompt_flag, common_args, step, log_file_path)
+        command_str = " ".join(command)
+
+        step_start = time.monotonic()
+        step_start_time = datetime.now()
+
+        # --- Step header ---
+        if tee is not None:
+            _out("")
+            _out(f"[{absolute_index}/{total_steps}] {step['name']}")
+            _out(f"Started: {step_start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            _out(f"$ {command_str}")
+        else:
+            print_step_header(absolute_index, total_steps, step["name"])
+            print(f"$ {command_str}")
+
+        if dry_run:
             continue
 
-        completed = subprocess.run(command, cwd=cwd, check=False)
-        if completed.returncode != 0:
-            print(
-                f"Step failed with exit code {completed.returncode}: {step['name']}",
-                file=sys.stderr,
+        # --- Execute step ---
+        if tee is not None:
+            _out("--- stdout/stderr ---")
+            process = subprocess.Popen(
+                command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             )
-            return completed.returncode
+            exit_code = tee.write_process_output(process)
+        else:
+            completed = subprocess.run(command, cwd=cwd, check=False)
+            exit_code = completed.returncode
+
+        step_duration = time.monotonic() - step_start
+        duration_str = format_duration(step_duration)
+
+        # --- Step footer ---
+        if tee is not None:
+            _out(f"--- end (exit: {exit_code}, duration: {duration_str}) ---")
+            # Check for commit change
+            current_commit = get_head_commit(cwd)
+            if current_commit and prev_commit and current_commit != prev_commit:
+                _out(f"Commit: {prev_commit} -> {current_commit}")
+            prev_commit = current_commit
+
+        # --- Handle failure ---
+        if exit_code != 0:
+            fail_msg = f"Step failed with exit code {exit_code}: {step['name']}"
+            if tee is not None:
+                # Write workflow footer on failure
+                end_time = datetime.now()
+                total_duration = time.monotonic() - workflow_start
+                end_commit = get_head_commit(cwd)
+                _out("")
+                _out("=====================================")
+                _out(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                if end_commit:
+                    _out(f"Commit (end): {end_commit}")
+                _out(f"Duration: {format_duration(total_duration)}")
+                _out(f"Result: FAILED at step {absolute_index}/{total_steps} ({step['name']})")
+                _out("=====================================")
+            print(fail_msg, file=sys.stderr)
+            return exit_code
+
+        completed_count += 1
 
     if not ran_any_step:
-        print("No steps to run.")
+        _out("No steps to run.")
         return 0
 
-    print("\nWorkflow completed.")
+    # --- Workflow footer ---
+    if tee is not None:
+        end_time = datetime.now()
+        total_duration = time.monotonic() - workflow_start
+        end_commit = get_head_commit(cwd)
+        _out("")
+        _out("=====================================")
+        _out(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if end_commit:
+            _out(f"Commit (end): {end_commit}")
+        _out(f"Duration: {format_duration(total_duration)}")
+        _out(f"Result: SUCCESS ({completed_count}/{completed_count} steps completed)")
+        _out("=====================================")
+    else:
+        print("\nWorkflow completed.")
+
     return 0
 
 

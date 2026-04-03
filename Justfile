@@ -23,3 +23,30 @@ ssh:
 # ローカルビルド + プレビュー
 preview:
 	pnpm build && node .output/server/index.mjs
+
+# --- インフラ管理 (Bicep) ---
+
+# インフラのデプロイ（初回作成 / 更新）
+deploy-infra:
+	az deployment sub create \
+	  --location japaneast \
+	  --template-file infra/main.bicep \
+	  --parameters infra/main.bicepparam
+
+# インフラの変更プレビュー（what-if）
+preview-infra:
+	az deployment sub what-if \
+	  --location japaneast \
+	  --template-file infra/main.bicep \
+	  --parameters infra/main.bicepparam
+
+# インフラの削除（Resource Group ごと）
+destroy-infra:
+	az group delete --name {{resource_group}} --yes
+
+# Publish Profile の取得（GitHub Actions 用）
+get-publish-profile:
+	az webapp deployment list-publishing-profiles \
+	  --name {{app_name}} \
+	  --resource-group {{resource_group}} \
+	  --xml

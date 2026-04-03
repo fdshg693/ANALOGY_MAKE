@@ -27,8 +27,8 @@ util カテゴリのコード現況。Claude Code ワークフロー自動化基
 | ファイル | 行数 | 役割 |
 |---|---|---|
 | `.claude/scripts/get_latest_version.sh` | 43 | バージョン番号の算出。`latest` / `major` / `next-minor` / `next-major` の 4 モードに対応。旧形式（`ver12`）と新形式（`ver13.0`）の両方をパース |
-| `scripts/claude_loop.py` | 449 | Python 自動化スクリプト。YAML ワークフロー定義に従い Claude CLI を順次実行。ログ出力・コミット追跡機能付き |
-| `scripts/claude_loop.yaml` | 27 | フルワークフロー定義。5 ステップ（split_plan → imple_plan → wrap_up → write_current → retrospective）を定義 |
+| `scripts/claude_loop.py` | 448 | Python 自動化スクリプト。YAML ワークフロー定義に従い Claude CLI を順次実行。ログ出力・コミット追跡機能付き |
+| `scripts/claude_loop.yaml` | 38 | フルワークフロー定義。5 ステップ（split_plan → imple_plan → wrap_up → write_current → retrospective）を定義。`--append-system-prompt` で `claude_sync.py` の利用手順も注入 |
 | `scripts/claude_sync.py` | 58 | `.claude/` ⇔ `.claude_sync/` 同期スクリプト。CLI `-p` モードで `.claude/` を編集できない制約を回避するためのワークアラウンド |
 
 ### テスト
@@ -36,6 +36,13 @@ util カテゴリのコード現況。Claude Code ワークフロー自動化基
 | ファイル | 行数 | 役割 |
 |---|---|---|
 | `tests/test_claude_loop.py` | 203 | `claude_loop.py` のユニットテスト。unittest 使用。`python -m unittest tests.test_claude_loop` で実行 |
+
+### 設定ファイル
+
+| ファイル | 役割 |
+|---|---|
+| `.claude/settings.local.json` | ローカル設定。`PermissionRequest` フックで `^(?!AskUserQuestion)` マッチャーを使用し、AskUserQuestion 以外の権限要求を自動承認。`Edit(/.claude/**)` / `Write(/.claude/**)` も許可ツールに追加済み |
+| `.gitignore` | `logs/`（ワークフローログ）、`.claude_sync/`（同期ワークアラウンド一時コピー）、`data/`（SQLite）を除外 |
 
 ### 非同期コミュニケーション
 

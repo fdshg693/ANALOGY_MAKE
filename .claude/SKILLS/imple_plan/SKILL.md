@@ -13,7 +13,7 @@ user-invocable: true
 
 現在のコード状況を把握するために、以下を参照してください:
 
-1. 直前のメジャーバージョンの `CURRENT.md` を参照する
+1. 直前のメジャーバージョンの `CURRENT.md` を参照する。`CURRENT.md` が分割されている場合（`CURRENT_{トピック名}.md` へのリンクを含む場合）は、今回の実装に関連する詳細ファイルのみを読む
    - メジャーバージョンの特定: `bash .claude/scripts/get_latest_version.sh major`
    - **フォールバック**: メジャーバージョンの `CURRENT.md` が存在しない場合は、それ以前のバージョンを遡って最新の `CURRENT.md` を参照する
 2. そのメジャーバージョン以降のマイナーバージョンに `CHANGES.md` があれば、それらも参照する

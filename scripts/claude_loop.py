@@ -486,7 +486,7 @@ def _run_steps(
 
         log_file_path = str(log_path) if tee is not None else None
         command = build_command(executable, prompt_flag, common_args, step, log_file_path, auto_mode)
-        command_str = " ".join(command)
+        command_str = shlex.join(command)
 
         step_start = time.monotonic()
         step_start_time = datetime.now()

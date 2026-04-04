@@ -26,17 +26,11 @@ command:
       **Note**: Run export/import via the Bash tool with `python scripts/claude_sync.py <command>`."
 
 steps:
-  - name: split_plan
-    prompt: /split_plan
+  - name: quick_plan
+    prompt: /quick_plan
 
-  - name: imple_plan
-    prompt: /imple_plan
+  - name: quick_impl
+    prompt: /quick_impl
 
-  - name: wrap_up
-    prompt: /wrap_up
-
-  - name: write_current
-    prompt: /write_current
-
-  - name: retrospective
-    prompt: /retrospective
+  - name: quick_doc
+    prompt: /quick_doc

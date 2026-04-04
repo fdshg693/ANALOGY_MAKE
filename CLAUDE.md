@@ -32,6 +32,7 @@
 - `.github/workflows/` — CI/CD（GitHub Actions）
 - `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）
 - `REQUESTS/` — 機能リクエスト（分類別: `workflow/` 等）
+- `FEEDBACKS/` — ワークフローへのユーザーフィードバック（YAML frontmatter で対象ステップ指定、消費後 `done/` へ移動）
 - `infra/` — Azure インフラ定義（Bicep テンプレート）
 - `Justfile` — Azure CLI 運用コマンド（ログ確認・再起動・SSH 等）+ インフラ管理コマンド（デプロイ・プレビュー・削除）
 - `docs/` — ドキュメント（カテゴリ別 → バージョン別管理）

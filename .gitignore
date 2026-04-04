@@ -28,3 +28,9 @@ infra/main.bicepparam
 
 # SQLite data
 data/
+
+# claude sync copy
+.claude_sync/
+
+__pycache__
+*.pyc

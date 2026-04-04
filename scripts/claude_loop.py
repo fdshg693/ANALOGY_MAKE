@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import io
 import shlex
 import shutil
 import subprocess
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +61,32 @@ def parse_args() -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Print commands without running them",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=Path("logs/workflow"),
+        help="Directory for workflow log files (default: logs/workflow/)",
+    )
+    parser.add_argument(
+        "--no-log",
+        action="store_true",
+        help="Disable log file output",
+    )
+    parser.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="Disable desktop notification on workflow completion",
+    )
+    parser.add_argument(
+        "--auto-commit-before",
+        action="store_true",
+        help="Automatically commit uncommitted changes before starting the workflow",
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Force auto (unattended) execution mode",
     )
     loop_group = parser.add_mutually_exclusive_group()
     loop_group.add_argument(
@@ -145,7 +174,7 @@ def get_steps(config: dict[str, Any]) -> list[dict[str, Any]]:
     return steps
 
 
-def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str]]:
+def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str], list[str]]:
     command_config = config.get("command") or {}
     if not isinstance(command_config, dict):
         raise SystemExit("'command' must be a mapping when provided.")
@@ -153,13 +182,80 @@ def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str]]
     executable = command_config.get("executable", "claude")
     prompt_flag = command_config.get("prompt_flag", "-p")
     common_args = normalize_cli_args(command_config.get("args"), "command.args")
+    auto_args = normalize_cli_args(command_config.get("auto_args"), "command.auto_args")
 
     if not isinstance(executable, str) or not executable.strip():
         raise SystemExit("'command.executable' must be a non-empty string.")
     if not isinstance(prompt_flag, str) or not prompt_flag.strip():
         raise SystemExit("'command.prompt_flag' must be a non-empty string.")
 
-    return executable, prompt_flag, common_args
+    return executable, prompt_flag, common_args, auto_args
+
+
+def resolve_mode(config: dict[str, Any], cli_auto: bool) -> bool:
+    """Determine execution mode. Returns True for auto mode."""
+    if cli_auto:
+        return True
+    mode_config = config.get("mode") or {}
+    return bool(mode_config.get("auto", False))
+
+
+def parse_feedback_frontmatter(content: str) -> tuple[list[str] | None, str]:
+    """Parse YAML frontmatter from a feedback Markdown file.
+    Returns (step_names, body). step_names is None for catch-all."""
+    lines = content.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None, content
+
+    for i, line in enumerate(lines[1:], 1):
+        if line.strip() == "---":
+            frontmatter_str = "\n".join(lines[1:i])
+            body = "\n".join(lines[i + 1:]).strip()
+            break
+    else:
+        return None, content
+
+    try:
+        frontmatter = yaml.safe_load(frontmatter_str)
+    except yaml.YAMLError:
+        return None, content
+
+    if not isinstance(frontmatter, dict):
+        return None, body
+
+    step = frontmatter.get("step")
+    if step is None:
+        return None, body
+    if isinstance(step, str):
+        return [step], body
+    if isinstance(step, list) and all(isinstance(s, str) for s in step):
+        return step, body
+    return None, body
+
+
+def load_feedbacks(feedbacks_dir: Path, step_name: str) -> list[tuple[Path, str]]:
+    """Load feedback files matching the given step name."""
+    if not feedbacks_dir.is_dir():
+        return []
+
+    results: list[tuple[Path, str]] = []
+    for md_file in sorted(feedbacks_dir.glob("*.md")):
+        content = md_file.read_text(encoding="utf-8")
+        step_names, body = parse_feedback_frontmatter(content)
+        if not body:
+            continue
+        if step_names is None or step_name in step_names:
+            results.append((md_file, body))
+    return results
+
+
+def consume_feedbacks(files: list[Path], done_dir: Path) -> None:
+    """Move consumed feedback files to the done directory."""
+    if not files:
+        return
+    done_dir.mkdir(parents=True, exist_ok=True)
+    for file_path in files:
+        shutil.move(str(file_path), str(done_dir / file_path.name))
 
 
 def build_command(
@@ -167,8 +263,25 @@ def build_command(
     prompt_flag: str,
     common_args: list[str],
     step: dict[str, Any],
+    log_file_path: str | None = None,
+    auto_mode: bool = False,
+    feedbacks: list[str] | None = None,
 ) -> list[str]:
-    return [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
+    cmd = [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
+    system_prompts: list[str] = []
+    if log_file_path:
+        system_prompts.append(f"Current workflow log: {log_file_path}")
+    if auto_mode:
+        system_prompts.append(
+            "Workflow execution mode: AUTO (unattended). "
+            "Do not use AskUserQuestion. Write requests to REQUESTS/AI/ instead."
+        )
+    if feedbacks:
+        feedback_section = "## User Feedback\n\n" + "\n\n---\n\n".join(feedbacks)
+        system_prompts.append(feedback_section)
+    if system_prompts:
+        cmd.extend(["--append-system-prompt", "\n\n".join(system_prompts)])
+    return cmd
 
 
 def print_step_header(current_index: int, total_steps: int, name: str) -> None:
@@ -200,6 +313,123 @@ def iter_steps_for_step_limit(
         step_index = (step_index + 1) % len(steps)
 
 
+def create_log_path(log_dir: Path, workflow_path: Path) -> Path:
+    """Generate timestamped log file path."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    workflow_name = workflow_path.stem  # e.g. "claude_loop"
+    log_dir = log_dir.resolve()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir / f"{timestamp}_{workflow_name}.log"
+
+
+class TeeWriter:
+    """Write to both a file and stdout simultaneously."""
+
+    def __init__(self, log_file: io.TextIOWrapper):
+        self.log_file = log_file
+
+    def write_line(self, line: str) -> None:
+        """Write a line to both stdout and log file."""
+        print(line)
+        self.log_file.write(line + "\n")
+        self.log_file.flush()
+
+    def write_process_output(self, process: subprocess.Popen) -> int:
+        """Stream process stdout/stderr to both stdout and log file.
+        Returns the process exit code."""
+        for raw_line in process.stdout:
+            line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
+            print(line)
+            self.log_file.write(line + "\n")
+            self.log_file.flush()
+        process.wait()
+        return process.returncode
+
+
+def get_head_commit(cwd: Path) -> str | None:
+    """Get current HEAD commit hash, or None if not a git repo."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=cwd, capture_output=True, text=True, check=False,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except FileNotFoundError:
+        return None
+
+
+def check_uncommitted_changes(cwd: Path) -> bool:
+    """Check if there are uncommitted changes in the working directory."""
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd, capture_output=True, text=True, check=False,
+        )
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except FileNotFoundError:
+        return False
+
+
+def auto_commit_changes(cwd: Path) -> str | None:
+    """Stage all changes and commit. Returns the new commit hash or None on failure."""
+    try:
+        subprocess.run(["git", "add", "-A"], cwd=cwd, check=True)
+        subprocess.run(["git", "commit", "-m", "auto-commit before workflow"], cwd=cwd, check=True)
+        return get_head_commit(cwd)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
+def format_duration(seconds: float) -> str:
+    """Format seconds into human-readable duration string."""
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+    if minutes > 0:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
+def notify_completion(title: str, message: str) -> None:
+    """Send desktop notification. Falls back to beep on failure."""
+    try:
+        _notify_toast(title, message)
+    except Exception:
+        _notify_beep(title, message)
+
+
+def _notify_toast(title: str, message: str) -> None:
+    """Windows toast notification via PowerShell."""
+    safe_title = title.replace("'", "''")
+    safe_message = message.replace("'", "''")
+    script = (
+        "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; "
+        "$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); "
+        "$text = $template.GetElementsByTagName('text'); "
+        f"$text[0].AppendChild($template.CreateTextNode('{safe_title}')) | Out-Null; "
+        f"$text[1].AppendChild($template.CreateTextNode('{safe_message}')) | Out-Null; "
+        "$toast = [Windows.UI.Notifications.ToastNotification]::new($template); "
+        "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Claude Workflow').Show($toast)"
+    )
+    result = subprocess.run(
+        ["powershell", "-Command", script],
+        capture_output=True, check=False, timeout=10,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("Toast notification failed")
+
+
+def _notify_beep(title: str, message: str) -> None:
+    """Fallback: beep + console output."""
+    print("\a")
+    print(f"\n{'=' * 40}")
+    print(f"  {title}")
+    print(f"  {message}")
+    print(f"{'=' * 40}\n")
+
+
 def main() -> int:
     args = parse_args()
     config = load_workflow(args.workflow)
@@ -210,7 +440,10 @@ def main() -> int:
             f"--start must be between 1 and {len(steps)}. Received: {args.start}"
         )
 
-    executable, prompt_flag, common_args = resolve_command_config(config)
+    executable, prompt_flag, common_args, auto_args = resolve_command_config(config)
+    auto_mode = resolve_mode(config, args.auto)
+    if auto_mode:
+        common_args = common_args + auto_args
     if shutil.which(executable) is None:
         raise SystemExit(f"Command not found: {executable}")
 
@@ -218,34 +451,194 @@ def main() -> int:
     if not cwd.is_dir():
         raise SystemExit(f"Working directory not found: {cwd}")
 
+    uncommitted_status: str | None = None
+    if not args.dry_run:
+        if check_uncommitted_changes(cwd):
+            if args.auto_commit_before:
+                commit_hash = auto_commit_changes(cwd)
+                if commit_hash:
+                    uncommitted_status = f"auto-committed ({commit_hash})"
+                    print(f"Auto-committed uncommitted changes: {commit_hash}")
+                else:
+                    uncommitted_status = "auto-commit failed, proceeding with uncommitted changes"
+                    print("WARNING: Auto-commit failed. Proceeding with uncommitted changes.", file=sys.stderr)
+            else:
+                uncommitted_status = "uncommitted changes detected (no --auto-commit-before)"
+                print("WARNING: Uncommitted changes detected. Consider committing before running the workflow.", file=sys.stderr)
+
     if args.max_step_runs is not None:
         step_iter = iter_steps_for_step_limit(steps, args.start - 1, args.max_step_runs)
     else:
         step_iter = iter_steps_for_loop_limit(steps, args.start - 1, args.max_loops)
 
+    enable_log = not args.no_log and not args.dry_run
+
+    workflow_start = time.monotonic()
+
+    if enable_log:
+        log_path = create_log_path(args.log_dir, args.workflow)
+        with open(log_path, "w", encoding="utf-8") as log_file:
+            tee = TeeWriter(log_file)
+            exit_code = _run_steps(
+                step_iter, steps, executable, prompt_flag, common_args,
+                cwd, args.dry_run, tee, log_path, auto_mode,
+                uncommitted_status,
+            )
+    else:
+        exit_code = _run_steps(
+            step_iter, steps, executable, prompt_flag, common_args,
+            cwd, args.dry_run, None, None, auto_mode,
+            uncommitted_status,
+        )
+
+    total_duration = time.monotonic() - workflow_start
+
+    if not args.no_notify and not args.dry_run:
+        duration_str = format_duration(total_duration)
+        if exit_code == 0:
+            notify_completion("Workflow Complete", f"All steps succeeded ({duration_str})")
+        else:
+            notify_completion("Workflow Failed", f"Exit code: {exit_code} ({duration_str})")
+
+    return exit_code
+
+
+def _run_steps(
+    step_iter,
+    steps: list[dict[str, Any]],
+    executable: str,
+    prompt_flag: str,
+    common_args: list[str],
+    cwd: Path,
+    dry_run: bool,
+    tee: TeeWriter | None,
+    log_path: Path | None,
+    auto_mode: bool = False,
+    uncommitted_status: str | None = None,
+) -> int:
+    """Execute workflow steps with optional logging via TeeWriter."""
+    total_steps = len(steps)
+    workflow_start = time.monotonic()
+    start_time = datetime.now()
+    start_commit = get_head_commit(cwd)
+    completed_count = 0
+    feedbacks_dir = cwd / "FEEDBACKS"
+
+    def _out(line: str) -> None:
+        if tee is not None:
+            tee.write_line(line)
+        else:
+            print(line)
+
+    # --- Workflow header ---
+    if tee is not None:
+        _out("=====================================")
+        _out(f"Workflow: {log_path.stem.split('_', 2)[-1] if log_path else 'unknown'}")
+        _out(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if start_commit:
+            _out(f"Commit (start): {start_commit}")
+        if uncommitted_status:
+            _out(f"Uncommitted: {uncommitted_status}")
+        _out("=====================================")
+
     ran_any_step = False
+    prev_commit = start_commit
+
     for step, absolute_index in step_iter:
         ran_any_step = True
-        command = build_command(executable, prompt_flag, common_args, step)
-        print_step_header(absolute_index, len(steps), step["name"])
-        print(f"$ {' '.join(command)}")
 
-        if args.dry_run:
+        # --- Load feedbacks ---
+        matched = load_feedbacks(feedbacks_dir, step["name"])
+        feedback_contents = [content for _, content in matched]
+        feedback_files = [path for path, _ in matched]
+
+        log_file_path = str(log_path) if tee is not None else None
+        command = build_command(executable, prompt_flag, common_args, step, log_file_path, auto_mode, feedbacks=feedback_contents or None)
+        command_str = shlex.join(command)
+
+        step_start = time.monotonic()
+        step_start_time = datetime.now()
+
+        # --- Step header ---
+        if tee is not None:
+            _out("")
+            _out(f"[{absolute_index}/{total_steps}] {step['name']}")
+            _out(f"Started: {step_start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            _out(f"$ {command_str}")
+        else:
+            print_step_header(absolute_index, total_steps, step["name"])
+            print(f"$ {command_str}")
+
+        if dry_run:
             continue
 
-        completed = subprocess.run(command, cwd=cwd, check=False)
-        if completed.returncode != 0:
-            print(
-                f"Step failed with exit code {completed.returncode}: {step['name']}",
-                file=sys.stderr,
+        # --- Execute step ---
+        if tee is not None:
+            _out("--- stdout/stderr ---")
+            process = subprocess.Popen(
+                command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             )
-            return completed.returncode
+            exit_code = tee.write_process_output(process)
+        else:
+            completed = subprocess.run(command, cwd=cwd, check=False)
+            exit_code = completed.returncode
+
+        step_duration = time.monotonic() - step_start
+        duration_str = format_duration(step_duration)
+
+        # --- Step footer ---
+        if tee is not None:
+            _out(f"--- end (exit: {exit_code}, duration: {duration_str}) ---")
+            # Check for commit change
+            current_commit = get_head_commit(cwd)
+            if current_commit and prev_commit and current_commit != prev_commit:
+                _out(f"Commit: {prev_commit} -> {current_commit}")
+            prev_commit = current_commit
+
+        # --- Handle failure ---
+        if exit_code != 0:
+            fail_msg = f"Step failed with exit code {exit_code}: {step['name']}"
+            if tee is not None:
+                # Write workflow footer on failure
+                end_time = datetime.now()
+                total_duration = time.monotonic() - workflow_start
+                end_commit = get_head_commit(cwd)
+                _out("")
+                _out("=====================================")
+                _out(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                if end_commit:
+                    _out(f"Commit (end): {end_commit}")
+                _out(f"Duration: {format_duration(total_duration)}")
+                _out(f"Result: FAILED at step {absolute_index}/{total_steps} ({step['name']})")
+                _out("=====================================")
+            print(fail_msg, file=sys.stderr)
+            return exit_code
+
+        if feedback_files:
+            consume_feedbacks(feedback_files, feedbacks_dir / "done")
+
+        completed_count += 1
 
     if not ran_any_step:
-        print("No steps to run.")
+        _out("No steps to run.")
         return 0
 
-    print("\nWorkflow completed.")
+    # --- Workflow footer ---
+    if tee is not None:
+        end_time = datetime.now()
+        total_duration = time.monotonic() - workflow_start
+        end_commit = get_head_commit(cwd)
+        _out("")
+        _out("=====================================")
+        _out(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if end_commit:
+            _out(f"Commit (end): {end_commit}")
+        _out(f"Duration: {format_duration(total_duration)}")
+        _out(f"Result: SUCCESS ({completed_count}/{completed_count} steps completed)")
+        _out("=====================================")
+    else:
+        print("\nWorkflow completed.")
+
     return 0
 
 

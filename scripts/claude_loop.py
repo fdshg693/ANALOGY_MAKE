@@ -200,6 +200,64 @@ def resolve_mode(config: dict[str, Any], cli_auto: bool) -> bool:
     return bool(mode_config.get("auto", False))
 
 
+def parse_feedback_frontmatter(content: str) -> tuple[list[str] | None, str]:
+    """Parse YAML frontmatter from a feedback Markdown file.
+    Returns (step_names, body). step_names is None for catch-all."""
+    lines = content.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None, content
+
+    for i, line in enumerate(lines[1:], 1):
+        if line.strip() == "---":
+            frontmatter_str = "\n".join(lines[1:i])
+            body = "\n".join(lines[i + 1:]).strip()
+            break
+    else:
+        return None, content
+
+    try:
+        frontmatter = yaml.safe_load(frontmatter_str)
+    except yaml.YAMLError:
+        return None, content
+
+    if not isinstance(frontmatter, dict):
+        return None, body
+
+    step = frontmatter.get("step")
+    if step is None:
+        return None, body
+    if isinstance(step, str):
+        return [step], body
+    if isinstance(step, list) and all(isinstance(s, str) for s in step):
+        return step, body
+    return None, body
+
+
+def load_feedbacks(feedbacks_dir: Path, step_name: str) -> list[tuple[Path, str]]:
+    """Load feedback files matching the given step name."""
+    if not feedbacks_dir.is_dir():
+        return []
+
+    results: list[tuple[Path, str]] = []
+    for md_file in sorted(feedbacks_dir.glob("*.md")):
+        content = md_file.read_text(encoding="utf-8")
+        step_names, body = parse_feedback_frontmatter(content)
+        if not body:
+            continue
+        if step_names is None or step_name in step_names:
+            results.append((md_file, body))
+    return results
+
+
+def consume_feedbacks(files: list[Path], done_dir: Path) -> None:
+    """Move consumed feedback files to the done directory."""
+    if not files:
+        return
+    done_dir.mkdir(parents=True, exist_ok=True)
+    for file_path in files:
+        shutil.move(str(file_path), str(done_dir / file_path.name))
+
+
 def build_command(
     executable: str,
     prompt_flag: str,
@@ -207,6 +265,7 @@ def build_command(
     step: dict[str, Any],
     log_file_path: str | None = None,
     auto_mode: bool = False,
+    feedbacks: list[str] | None = None,
 ) -> list[str]:
     cmd = [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
     system_prompts: list[str] = []
@@ -217,6 +276,9 @@ def build_command(
             "Workflow execution mode: AUTO (unattended). "
             "Do not use AskUserQuestion. Write requests to REQUESTS/AI/ instead."
         )
+    if feedbacks:
+        feedback_section = "## User Feedback\n\n" + "\n\n---\n\n".join(feedbacks)
+        system_prompts.append(feedback_section)
     if system_prompts:
         cmd.extend(["--append-system-prompt", "\n\n".join(system_prompts)])
     return cmd
@@ -460,6 +522,7 @@ def _run_steps(
     start_time = datetime.now()
     start_commit = get_head_commit(cwd)
     completed_count = 0
+    feedbacks_dir = cwd / "FEEDBACKS"
 
     def _out(line: str) -> None:
         if tee is not None:
@@ -484,8 +547,13 @@ def _run_steps(
     for step, absolute_index in step_iter:
         ran_any_step = True
 
+        # --- Load feedbacks ---
+        matched = load_feedbacks(feedbacks_dir, step["name"])
+        feedback_contents = [content for _, content in matched]
+        feedback_files = [path for path, _ in matched]
+
         log_file_path = str(log_path) if tee is not None else None
-        command = build_command(executable, prompt_flag, common_args, step, log_file_path, auto_mode)
+        command = build_command(executable, prompt_flag, common_args, step, log_file_path, auto_mode, feedbacks=feedback_contents or None)
         command_str = shlex.join(command)
 
         step_start = time.monotonic()
@@ -545,6 +613,9 @@ def _run_steps(
                 _out("=====================================")
             print(fail_msg, file=sys.stderr)
             return exit_code
+
+        if feedback_files:
+            consume_feedbacks(feedback_files, feedbacks_dir / "done")
 
         completed_count += 1
 

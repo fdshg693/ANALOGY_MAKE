@@ -18,6 +18,7 @@ user-invocable: true
 1. 最新バージョンの `CURRENT.md` があれば参照する（メジャーバージョンの `CURRENT.md` を起点に、以降のマイナーバージョンの `CHANGES.md` も確認する）
 2. `ISSUES/{カテゴリ}` フォルダ配下の `high`・`medium` 課題を確認する
 3. 直前バージョンの `RETROSPECTIVE.md` が存在する場合は確認し、未実施の改善提案がないか確認する
+4. `docs/{カテゴリ}/MASTER_PLAN.md` の全フェーズが「実装済み」の場合は、ISSUES 対応に集中する。ISSUES もない場合はユーザーに次の方向性を確認する
 
 ## 計画
 

@@ -32,3 +32,7 @@
 | 既存機能の微調整 | quick |
 | ドキュメント・テスト追加 | quick |
 | 変更ファイル 3 つ以下 | quick |
+
+### 保守上の注意
+
+- `claude_loop.yaml` と `claude_loop_quick.yaml` の `command` セクションは同一内容。片方を変更した際はもう片方も必ず同期すること

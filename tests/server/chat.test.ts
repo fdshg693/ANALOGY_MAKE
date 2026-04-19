@@ -35,6 +35,7 @@ vi.mock('../../server/utils/thread-store', () => ({
   upsertThread: vi.fn(),
   getThreadTitle: vi.fn().mockReturnValue('新しいチャット'),
   updateThreadTitle: vi.fn(),
+  getThreadSettings: vi.fn().mockReturnValue({ granularity: 'standard', customInstruction: '' }),
 }))
 
 vi.stubGlobal('useRuntimeConfig', () => ({ openaiApiKey: 'test-key', tavilyApiKey: 'test-tavily-key' }))
@@ -153,6 +154,40 @@ describe('POST /api/chat', () => {
         (call: any) => call[0].event === 'token'
       )
       expect(tokenCalls).toHaveLength(1)
+    })
+
+    it('configurable に settings が含まれる', async () => {
+      vi.mocked(readBody).mockResolvedValue({ message: 'test', threadId: 'thread-1' })
+
+      const chunks = [
+        [new AIMessageChunk({ content: 'test' }), { langgraph_node: 'caseSearch' }],
+      ]
+
+      mockGraph.stream.mockResolvedValue({
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of chunks) {
+            yield chunk
+          }
+        },
+      })
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith({
+          event: 'done',
+          data: '{}',
+        })
+      })
+
+      expect(mockGraph.stream).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          configurable: expect.objectContaining({
+            settings: { granularity: 'standard', customInstruction: '' },
+          }),
+        }),
+      )
     })
   })
 

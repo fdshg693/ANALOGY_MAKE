@@ -1,7 +1,7 @@
 import { createEventStream, readBody, createError, defineEventHandler } from 'h3'
 import { AIMessageChunk, HumanMessage } from '@langchain/core/messages'
 import { getAnalogyAgent } from '../utils/analogy-agent'
-import { upsertThread, getThreadTitle, updateThreadTitle } from '../utils/thread-store'
+import { upsertThread, getThreadTitle, updateThreadTitle, getThreadSettings } from '../utils/thread-store'
 import { logger } from '../utils/logger'
 
 export default defineEventHandler(async (event) => {
@@ -23,10 +23,12 @@ export default defineEventHandler(async (event) => {
     try {
       upsertThread(body.threadId)
 
+      const settings = getThreadSettings(body.threadId)
+
       const stream = await agent.stream(
         { messages: [new HumanMessage(body.message)] },
         {
-          configurable: { thread_id: body.threadId },
+          configurable: { thread_id: body.threadId, settings },
           streamMode: "messages",
         },
       )

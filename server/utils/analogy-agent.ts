@@ -3,12 +3,15 @@ import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite"
 import { ChatOpenAI } from "@langchain/openai"
 import { TavilySearch } from "@langchain/tavily"
 import type { BaseMessage } from "@langchain/core/messages"
+import type { RunnableConfig } from "@langchain/core/runnables"
+import type { ThreadSettings } from "./thread-store"
 import { DB_PATH } from "./db-config"
 import {
   ABSTRACTION_PROMPT,
   CASE_SEARCH_PROMPT,
   SOLUTION_PROMPT,
   FOLLOWUP_PROMPT,
+  buildSystemPrompt,
 } from "./analogy-prompt"
 import { logger } from "./logger"
 
@@ -93,7 +96,8 @@ async function abstractionNode(state: typeof AnalogyState.State) {
 }
 
 // ノード: 事例検索・提示
-async function caseSearchNode(state: typeof AnalogyState.State) {
+async function caseSearchNode(state: typeof AnalogyState.State, config: RunnableConfig) {
+  const settings = config?.configurable?.settings as ThreadSettings | undefined
   const searchResults = await performSearch(state.abstractedProblem)
   const model = getModel()
 
@@ -105,7 +109,10 @@ async function caseSearchNode(state: typeof AnalogyState.State) {
     searchResults || "(検索結果なし)",
   ].join("\n")
 
-  const fullSystemPrompt = `${CASE_SEARCH_PROMPT}\n\n${contextMessage}`
+  const fullSystemPrompt = buildSystemPrompt(
+    `${CASE_SEARCH_PROMPT}\n\n${contextMessage}`,
+    settings
+  )
 
   const result = await model.invoke([
     { role: "system", content: fullSystemPrompt },
@@ -119,10 +126,11 @@ async function caseSearchNode(state: typeof AnalogyState.State) {
 }
 
 // ノード: 解決策生成
-async function solutionNode(state: typeof AnalogyState.State) {
+async function solutionNode(state: typeof AnalogyState.State, config: RunnableConfig) {
+  const settings = config?.configurable?.settings as ThreadSettings | undefined
   const model = getModel()
   const result = await model.invoke([
-    { role: "system", content: SOLUTION_PROMPT },
+    { role: "system", content: buildSystemPrompt(SOLUTION_PROMPT, settings) },
     ...state.messages,
   ])
   return {
@@ -132,10 +140,11 @@ async function solutionNode(state: typeof AnalogyState.State) {
 }
 
 // ノード: フォローアップ対応
-async function followUpNode(state: typeof AnalogyState.State) {
+async function followUpNode(state: typeof AnalogyState.State, config: RunnableConfig) {
+  const settings = config?.configurable?.settings as ThreadSettings | undefined
   const model = getModel()
   const result = await model.invoke([
-    { role: "system", content: FOLLOWUP_PROMPT },
+    { role: "system", content: buildSystemPrompt(FOLLOWUP_PROMPT, settings) },
     ...state.messages,
   ])
   return {

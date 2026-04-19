@@ -2,6 +2,16 @@ import Database from 'better-sqlite3'
 import { DB_PATH } from './db-config'
 import { logger } from './logger'
 
+export interface ThreadSettings {
+  granularity: 'concise' | 'standard' | 'detailed'
+  customInstruction: string
+}
+
+export const DEFAULT_SETTINGS: ThreadSettings = {
+  granularity: 'standard',
+  customInstruction: '',
+}
+
 interface ThreadRecord {
   thread_id: string
   title: string
@@ -23,6 +33,11 @@ function getDb(): Database.Database {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `)
+    try {
+      _db.exec(`ALTER TABLE threads ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'`)
+    } catch {
+      // カラム既存なら無視（SQLite は IF NOT EXISTS をサポートしない）
+    }
     logger.thread.info('Database initialized', { path: DB_PATH, mode: 'WAL' })
   }
   return _db
@@ -57,4 +72,24 @@ export function getThreadTitle(threadId: string): string | null {
   const db = getDb()
   const row = db.prepare('SELECT title FROM threads WHERE thread_id = ?').get(threadId) as { title: string } | undefined
   return row?.title ?? null
+}
+
+/** スレッド設定を取得（未設定ならデフォルト値） */
+export function getThreadSettings(threadId: string): ThreadSettings {
+  const db = getDb()
+  const row = db.prepare('SELECT settings FROM threads WHERE thread_id = ?').get(threadId) as { settings: string } | undefined
+  if (!row?.settings || row.settings === '{}') return { ...DEFAULT_SETTINGS }
+  try {
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(row.settings) }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
+}
+
+/** スレッド設定を更新 */
+export function updateThreadSettings(threadId: string, settings: ThreadSettings): void {
+  const db = getDb()
+  db.prepare("UPDATE threads SET settings = ?, updated_at = datetime('now') WHERE thread_id = ?")
+    .run(JSON.stringify(settings), threadId)
+  logger.thread.info('Thread settings updated', { threadId })
 }

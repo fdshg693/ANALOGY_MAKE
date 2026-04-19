@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { useChat } from '~/composables/useChat'
 import { useThreads } from '~/composables/useThreads'
+import { useSettings } from '~/composables/useSettings'
 
 const { messages, isLoading, isStreaming, sendMessage, abort, switchThread } = useChat()
 const {
   threads, activeThreadId, isLoadingThreads,
   loadThreads, createNewThread, setActiveThread, initActiveThread,
 } = useThreads()
+const { settings, isSaving, loadSettings, saveSettings } = useSettings()
+const showSettings = ref(false)
 
 const messagesContainer = ref<HTMLElement | null>(null)
 
@@ -16,6 +19,7 @@ onMounted(async () => {
   await loadThreads()
   if (activeThreadId.value) {
     switchThread(activeThreadId.value)
+    loadSettings(activeThreadId.value)
   } else {
     handleNewThread()
   }
@@ -24,11 +28,13 @@ onMounted(async () => {
 function handleSelectThread(threadId: string) {
   setActiveThread(threadId)
   switchThread(threadId)
+  loadSettings(threadId)
 }
 
 function handleNewThread() {
   const newId = createNewThread()
   switchThread(newId)
+  loadSettings(newId)
 }
 
 async function handleSend(content: string) {
@@ -63,7 +69,18 @@ watch(
     <div class="chat-page">
       <header class="chat-header">
         <h1>Analogy AI</h1>
+        <button class="settings-toggle" @click="showSettings = !showSettings">
+          &#9881;
+        </button>
       </header>
+
+      <SettingsPanel
+        v-if="showSettings"
+        :settings="settings"
+        :is-saving="isSaving"
+        @update:settings="settings = $event"
+        @save="saveSettings"
+      />
 
       <main class="chat-messages" ref="messagesContainer">
         <ChatMessage
@@ -104,9 +121,27 @@ watch(
 }
 
 .chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.75rem 1rem;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.settings-toggle {
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 1.125rem;
+  cursor: pointer;
+  color: #6b7280;
+  transition: background 0.15s;
+}
+
+.settings-toggle:hover {
+  background: #f3f4f6;
 }
 
 .chat-header h1 {

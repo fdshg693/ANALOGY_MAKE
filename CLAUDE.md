@@ -28,6 +28,7 @@
   - `composables/` — Composables（状態管理・ロジック）
 - `server/` — バックエンド（API Routes、ユーティリティ）
 - `tests/` — 自動テスト（Vitest）
+- `scripts/` — Python 自動化スクリプト（`claude_loop.py` + `claude_loop_lib/` パッケージ、詳細は `scripts/README.md`）
 - `experiments/` — 実験スクリプト（tsx で実行）
 - `.github/workflows/` — CI/CD（GitHub Actions）
 - `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）

@@ -156,7 +156,7 @@ START ──→ [routeByStep: conditional edge]
 #### ユーティリティ関数
 
 - `getRuntimeConfig()` — `useRuntimeConfig()` の結果をモジュールスコープ変数にキャッシュ。ノード関数からはキャッシュを参照（リクエストコンテキスト外での動作を保証）
-- `getModel()` — `ChatOpenAI` インスタンスを都度生成（gpt-4.1-mini, temperature: 0.7）
+- `getModel()` — `ChatOpenAI` インスタンスを都度生成（gpt-5.4, temperature: 0.7）
 
 #### シングルトン
 
@@ -189,7 +189,7 @@ START ──→ [routeByStep: conditional edge]
 - `POST /api/chat` SSE ストリーミングエンドポイント
 - `upsertThread(body.threadId)` でスレッドメタデータ登録・更新
 - ストリーム完了後にタイトル自動生成（`generateTitle()`、非同期・非ブロッキング）
-- `generateTitle()`: `ChatOpenAI`（gpt-4.1-mini, temperature: 0, maxTokens: 30）で10文字以内の日本語タイトル生成
+- `generateTitle()`: `ChatOpenAI`（gpt-5.4, temperature: 0, maxTokens: 30）で10文字以内の日本語タイトル生成
 - **ストリーミングフィルタ（ver14.0 変更点）**:
   - `STREAMED_NODES = new Set(["caseSearch", "solution", "followUp"])` — ホワイトリスト方式
   - `metadata?.langgraph_node` でノードを識別し、`abstraction` ノードの出力をフィルタリング
@@ -359,7 +359,7 @@ ver14.0 で保存されるステート構造:
 - **テスト環境**: Vitest `environment: 'node'`
 - **ネイティブモジュール除外**: `nitro.externals.external: ['better-sqlite3']`
 - **楽観的 UI 更新**: `createNewThread()` でサーバー通信なしに即座にスレッドをリストに追加
-- **タイトル自動生成**: `generateTitle()` で gpt-4.1-mini を使い10文字以内の日本語タイトルを非同期生成
+- **タイトル自動生成**: `generateTitle()` で gpt-5.4 を使い10文字以内の日本語タイトルを非同期生成
 - **better-sqlite3 の直接依存**: pnpm の厳密な依存解決による
 - **thread-store のシングルトン DB**: LangGraph チェックポインターと同一 DB ファイルを共有
 - **CJS モジュールテスト**: `createRequire(import.meta.url)` で vitest のモック解決を回避

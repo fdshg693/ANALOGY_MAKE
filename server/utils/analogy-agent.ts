@@ -2,13 +2,18 @@ import { Annotation, StateGraph, START, END, messagesStateReducer } from "@langc
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite"
 import { ChatOpenAI } from "@langchain/openai"
 import { TavilySearch } from "@langchain/tavily"
+import { AIMessage, HumanMessage } from "@langchain/core/messages"
 import type { BaseMessage } from "@langchain/core/messages"
+import type { RunnableConfig } from "@langchain/core/runnables"
+import type { ThreadSettings, SearchSettings } from "./thread-store"
+import { DEFAULT_SEARCH_SETTINGS } from "./thread-store"
 import { DB_PATH } from "./db-config"
 import {
   ABSTRACTION_PROMPT,
   CASE_SEARCH_PROMPT,
   SOLUTION_PROMPT,
   FOLLOWUP_PROMPT,
+  buildSystemPrompt,
 } from "./analogy-prompt"
 import { logger } from "./logger"
 
@@ -41,30 +46,77 @@ function getRuntimeConfig() {
 function getModel() {
   const config = getRuntimeConfig()
   return new ChatOpenAI({
-    model: "gpt-4.1-mini",
+    model: "gpt-5.4",
     temperature: 0.7,
     apiKey: config.openaiApiKey,
   })
 }
 
+export interface SearchResult {
+  title: string
+  url: string
+  content: string
+}
+
+export type CurrentStep = 'initial' | 'awaiting_selection' | 'completed'
+
+/**
+ * fork 時、親分岐から切り出したメッセージ配列から新分岐の currentStep を推定する。
+ *
+ * 末尾メッセージ種別から次に走るノードを決める (routeByStep の逆算):
+ *   - 空 / 末尾 Human → 'initial'（次: abstraction → caseSearch）
+ *   - 末尾 AI かつ additional_kwargs.searchResults あり → 'awaiting_selection'（次: solution）
+ *   - 末尾 AI かつ searchResults なし → 'completed'（次: followUp）
+ */
+export function deriveCurrentStep(messages: BaseMessage[]): CurrentStep {
+  if (messages.length === 0) return 'initial'
+  const last = messages[messages.length - 1]
+  if (last instanceof HumanMessage) return 'initial'
+  if (last instanceof AIMessage) {
+    const sr = (last as AIMessage).additional_kwargs?.searchResults
+    if (Array.isArray(sr) && sr.length > 0) return 'awaiting_selection'
+    return 'completed'
+  }
+  return 'initial'
+}
+
 // Tavily Search 直接呼び出し
-async function performSearch(query: string): Promise<string> {
+async function performSearch(query: string, search: SearchSettings): Promise<SearchResult[]> {
+  if (!search.enabled) {
+    logger.agent.info("Tavily Search skipped (disabled by settings)")
+    return []
+  }
   const config = getRuntimeConfig()
   if (!config.tavilyApiKey) {
     logger.agent.info("Tavily Search skipped (API key not set)")
-    return ""
+    return []
   }
   try {
     const tavily = new TavilySearch({
-      maxResults: 3,
+      maxResults: search.maxResults,
+      searchDepth: search.depth,
       tavilyApiKey: config.tavilyApiKey,
     })
     const results = await tavily.invoke({ query })
-    logger.agent.info("Tavily Search completed", { query: query.slice(0, 50) })
-    return typeof results === "string" ? results : JSON.stringify(results)
+    logger.agent.info("Tavily Search completed", {
+      query: query.slice(0, 50),
+      depth: search.depth,
+      maxResults: search.maxResults,
+    })
+    if (results && typeof results === "object" && "error" in results) {
+      logger.agent.warn("Tavily Search returned error", { error: String(results.error) })
+      return []
+    }
+    if (results && typeof results === "object" && Array.isArray((results as { results?: unknown }).results)) {
+      const items = (results as { results: Array<{ title?: unknown; url?: unknown; content?: unknown }> }).results
+      return items
+        .filter((r) => typeof r?.title === "string" && typeof r?.url === "string" && typeof r?.content === "string")
+        .map((r) => ({ title: r.title as string, url: r.url as string, content: r.content as string }))
+    }
+    return []
   } catch (e) {
     logger.agent.warn("Tavily Search failed", { error: e instanceof Error ? e.message : "Unknown" })
-    return ""
+    return []
   }
 }
 
@@ -93,24 +145,42 @@ async function abstractionNode(state: typeof AnalogyState.State) {
 }
 
 // ノード: 事例検索・提示
-async function caseSearchNode(state: typeof AnalogyState.State) {
-  const searchResults = await performSearch(state.abstractedProblem)
+async function caseSearchNode(state: typeof AnalogyState.State, config: RunnableConfig) {
+  const settings = config?.configurable?.settings as ThreadSettings | undefined
+  const search = settings?.search ?? DEFAULT_SEARCH_SETTINGS
+  const searchResults = await performSearch(state.abstractedProblem, search)
   const model = getModel()
+
+  const searchResultsText = searchResults.length
+    ? searchResults
+        .map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.content}`)
+        .join("\n\n")
+    : "(検索結果なし)"
 
   const contextMessage = [
     `[内部コンテキスト]`,
     `抽象化された課題: ${state.abstractedProblem}`,
     ``,
     `Web検索結果:`,
-    searchResults || "(検索結果なし)",
+    searchResultsText,
   ].join("\n")
 
-  const fullSystemPrompt = `${CASE_SEARCH_PROMPT}\n\n${contextMessage}`
+  const fullSystemPrompt = buildSystemPrompt(
+    `${CASE_SEARCH_PROMPT}\n\n${contextMessage}`,
+    settings
+  )
 
   const result = await model.invoke([
     { role: "system", content: fullSystemPrompt },
     ...state.messages,
   ])
+
+  if (searchResults.length > 0) {
+    result.additional_kwargs = {
+      ...result.additional_kwargs,
+      searchResults,
+    }
+  }
 
   return {
     messages: [result],
@@ -119,10 +189,11 @@ async function caseSearchNode(state: typeof AnalogyState.State) {
 }
 
 // ノード: 解決策生成
-async function solutionNode(state: typeof AnalogyState.State) {
+async function solutionNode(state: typeof AnalogyState.State, config: RunnableConfig) {
+  const settings = config?.configurable?.settings as ThreadSettings | undefined
   const model = getModel()
   const result = await model.invoke([
-    { role: "system", content: SOLUTION_PROMPT },
+    { role: "system", content: buildSystemPrompt(SOLUTION_PROMPT, settings) },
     ...state.messages,
   ])
   return {
@@ -132,10 +203,11 @@ async function solutionNode(state: typeof AnalogyState.State) {
 }
 
 // ノード: フォローアップ対応
-async function followUpNode(state: typeof AnalogyState.State) {
+async function followUpNode(state: typeof AnalogyState.State, config: RunnableConfig) {
+  const settings = config?.configurable?.settings as ThreadSettings | undefined
   const model = getModel()
   const result = await model.invoke([
-    { role: "system", content: FOLLOWUP_PROMPT },
+    { role: "system", content: buildSystemPrompt(FOLLOWUP_PROMPT, settings) },
     ...state.messages,
   ])
   return {

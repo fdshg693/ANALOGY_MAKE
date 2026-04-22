@@ -2,6 +2,7 @@ export interface SSECallbacks {
   onToken: (content: string) => void
   onDone: () => void
   onError: (message: string) => void
+  onSearchResults?: (results: unknown[]) => void
 }
 
 export async function parseSSEStream(
@@ -36,6 +37,11 @@ export async function parseSSEStream(
       if (eventType === 'token' && data) {
         const parsed = JSON.parse(data)
         callbacks.onToken(parsed.content)
+      }
+
+      if (eventType === 'search_results' && data) {
+        const parsed = JSON.parse(data)
+        callbacks.onSearchResults?.(Array.isArray(parsed.results) ? parsed.results : [])
       }
 
       if (eventType === 'done') {

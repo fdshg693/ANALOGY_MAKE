@@ -9,22 +9,33 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch, MagicMock
 
 # Add the scripts directory to sys.path so we can import claude_loop
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from claude_loop import (
-    create_log_path, get_head_commit, format_duration, build_command, parse_args,
-    notify_completion, _notify_toast, resolve_mode, resolve_command_config,
-    check_uncommitted_changes, auto_commit_changes,
+from claude_loop import parse_args
+from claude_loop_lib.workflow import (
+    load_workflow, get_steps, resolve_defaults,
+    resolve_command_config, resolve_mode,
+)
+from claude_loop_lib.feedbacks import (
     parse_feedback_frontmatter, load_feedbacks, consume_feedbacks,
 )
+from claude_loop_lib.commands import build_command
+from claude_loop_lib.logging_utils import (
+    create_log_path, format_duration,
+)
+from claude_loop_lib.git_utils import (
+    get_head_commit, check_uncommitted_changes, auto_commit_changes,
+)
+from claude_loop_lib.notify import notify_completion, _notify_toast
 
 
 class TestCreateLogPath(unittest.TestCase):
     """Tests for create_log_path()."""
 
-    @patch("claude_loop.datetime")
+    @patch("claude_loop_lib.logging_utils.datetime")
     def test_generates_timestamped_filename(self, mock_datetime: MagicMock) -> None:
         mock_datetime.now.return_value.strftime.return_value = "20260404_120000"
         workflow_path = Path("workflows/my_workflow.yaml")
@@ -34,7 +45,7 @@ class TestCreateLogPath(unittest.TestCase):
 
         assert result.name == "20260404_120000_my_workflow.log"
 
-    @patch("claude_loop.datetime")
+    @patch("claude_loop_lib.logging_utils.datetime")
     def test_path_is_inside_log_dir(self, mock_datetime: MagicMock) -> None:
         mock_datetime.now.return_value.strftime.return_value = "20260404_120000"
         log_dir = Path("logs/workflow")
@@ -44,7 +55,7 @@ class TestCreateLogPath(unittest.TestCase):
 
         assert result.parent == log_dir.resolve()
 
-    @patch("claude_loop.datetime")
+    @patch("claude_loop_lib.logging_utils.datetime")
     def test_uses_workflow_stem_not_full_name(self, mock_datetime: MagicMock) -> None:
         mock_datetime.now.return_value.strftime.return_value = "20260101_000000"
         workflow_path = Path("/some/dir/deploy_steps.yaml")
@@ -55,7 +66,7 @@ class TestCreateLogPath(unittest.TestCase):
         assert "deploy_steps" in result.name
         assert ".yaml" not in result.name
 
-    @patch("claude_loop.datetime")
+    @patch("claude_loop_lib.logging_utils.datetime")
     def test_creates_log_directory(self, mock_datetime: MagicMock) -> None:
         mock_datetime.now.return_value.strftime.return_value = "20260101_000000"
         log_dir = Path("logs/deep/nested")
@@ -69,7 +80,7 @@ class TestCreateLogPath(unittest.TestCase):
 class TestGetHeadCommit(unittest.TestCase):
     """Tests for get_head_commit()."""
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_commit_hash_on_success(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="abc1234\n")
         result = get_head_commit(Path("/some/repo"))
@@ -83,20 +94,20 @@ class TestGetHeadCommit(unittest.TestCase):
             check=False,
         )
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_none_on_nonzero_exit(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=128, stdout="")
         result = get_head_commit(Path("/not-a-repo"))
 
         assert result is None
 
-    @patch("claude_loop.subprocess.run", side_effect=FileNotFoundError("git not found"))
+    @patch("claude_loop_lib.git_utils.subprocess.run", side_effect=FileNotFoundError("git not found"))
     def test_returns_none_when_git_not_found(self, mock_run: MagicMock) -> None:
         result = get_head_commit(Path("/any"))
 
         assert result is None
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_strips_whitespace_from_output(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="  def5678  \n")
         result = get_head_commit(Path("."))
@@ -211,18 +222,18 @@ class TestParseArgsLoggingOptions(unittest.TestCase):
 class TestNotifyCompletion(unittest.TestCase):
     """Tests for notify_completion()."""
 
-    @patch("claude_loop._notify_toast")
+    @patch("claude_loop_lib.notify._notify_toast")
     def test_calls_toast_on_success(self, mock_toast: MagicMock) -> None:
         notify_completion("title", "msg")
         mock_toast.assert_called_once_with("title", "msg")
 
-    @patch("claude_loop._notify_beep")
-    @patch("claude_loop._notify_toast", side_effect=Exception("fail"))
+    @patch("claude_loop_lib.notify._notify_beep")
+    @patch("claude_loop_lib.notify._notify_toast", side_effect=Exception("fail"))
     def test_falls_back_to_beep_on_toast_failure(self, mock_toast: MagicMock, mock_beep: MagicMock) -> None:
         notify_completion("title", "msg")
         mock_beep.assert_called_once_with("title", "msg")
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.notify.subprocess.run")
     def test_toast_escapes_single_quotes(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0)
         _notify_toast("it's done", "user's workflow")
@@ -315,7 +326,7 @@ class TestResolveCommandConfigAutoArgs(unittest.TestCase):
 class TestCheckUncommittedChanges(unittest.TestCase):
     """Tests for check_uncommitted_changes()."""
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_true_when_changes_exist(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout=" M file.txt\n")
         result = check_uncommitted_changes(Path("/repo"))
@@ -326,14 +337,14 @@ class TestCheckUncommittedChanges(unittest.TestCase):
             cwd=Path("/repo"), capture_output=True, text=True, check=False,
         )
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_false_when_no_changes(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         result = check_uncommitted_changes(Path("/repo"))
 
         assert result is False
 
-    @patch("claude_loop.subprocess.run", side_effect=FileNotFoundError("git not found"))
+    @patch("claude_loop_lib.git_utils.subprocess.run", side_effect=FileNotFoundError("git not found"))
     def test_returns_false_when_git_not_found(self, mock_run: MagicMock) -> None:
         result = check_uncommitted_changes(Path("/any"))
 
@@ -343,8 +354,8 @@ class TestCheckUncommittedChanges(unittest.TestCase):
 class TestAutoCommitChanges(unittest.TestCase):
     """Tests for auto_commit_changes()."""
 
-    @patch("claude_loop.get_head_commit", return_value="abc1234")
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.get_head_commit", return_value="abc1234")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_success_returns_commit_hash(self, mock_run: MagicMock, mock_head: MagicMock) -> None:
         result = auto_commit_changes(Path("/repo"))
 
@@ -356,13 +367,13 @@ class TestAutoCommitChanges(unittest.TestCase):
             cwd=Path("/repo"), check=True,
         )
 
-    @patch("claude_loop.subprocess.run", side_effect=subprocess.CalledProcessError(1, "git add"))
+    @patch("claude_loop_lib.git_utils.subprocess.run", side_effect=subprocess.CalledProcessError(1, "git add"))
     def test_returns_none_on_git_add_failure(self, mock_run: MagicMock) -> None:
         result = auto_commit_changes(Path("/repo"))
 
         assert result is None
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_none_on_git_commit_failure(self, mock_run: MagicMock) -> None:
         def side_effect(*args, **kwargs):
             if args[0][1] == "commit":
@@ -572,6 +583,167 @@ class TestBuildCommandWithFeedbacks(unittest.TestCase):
     def test_no_feedbacks(self) -> None:
         cmd = self._build(feedbacks=None)
         assert "--append-system-prompt" not in cmd
+
+
+class TestResolveDefaults(unittest.TestCase):
+    """Tests for resolve_defaults()."""
+
+    def test_returns_empty_when_key_absent(self) -> None:
+        assert resolve_defaults({}) == {}
+
+    def test_parses_model_and_effort(self) -> None:
+        result = resolve_defaults({"defaults": {"model": "opus", "effort": "high"}})
+        assert result == {"model": "opus", "effort": "high"}
+
+    def test_omits_absent_keys(self) -> None:
+        result = resolve_defaults({"defaults": {"model": "opus"}})
+        assert result == {"model": "opus"}
+        assert "effort" not in result
+
+    def test_raises_on_non_mapping(self) -> None:
+        with self.assertRaises(SystemExit):
+            resolve_defaults({"defaults": "opus"})
+
+    def test_raises_on_empty_string(self) -> None:
+        with self.assertRaises(SystemExit):
+            resolve_defaults({"defaults": {"model": ""}})
+
+    def test_raises_on_non_string(self) -> None:
+        with self.assertRaises(SystemExit):
+            resolve_defaults({"defaults": {"effort": 5}})
+
+
+class TestBuildCommandWithModelEffort(unittest.TestCase):
+    """Tests for build_command() with defaults/model/effort."""
+
+    def _make_step(self, **kwargs: Any) -> dict:
+        step = {"name": "test", "prompt": "/test", "args": []}
+        step.update(kwargs)
+        return step
+
+    def test_no_model_no_effort_when_unset(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(), defaults={})
+        assert "--model" not in cmd
+        assert "--effort" not in cmd
+
+    def test_uses_defaults_when_step_omits(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            defaults={"model": "sonnet", "effort": "medium"},
+        )
+        assert "--model" in cmd
+        assert cmd[cmd.index("--model") + 1] == "sonnet"
+        assert "--effort" in cmd
+        assert cmd[cmd.index("--effort") + 1] == "medium"
+
+    def test_step_overrides_defaults(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(model="opus"),
+            defaults={"model": "sonnet"},
+        )
+        assert cmd[cmd.index("--model") + 1] == "opus"
+        assert "sonnet" not in cmd
+
+    def test_step_sets_when_no_defaults(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(effort="high"), defaults={},
+        )
+        assert cmd[cmd.index("--effort") + 1] == "high"
+        assert "--model" not in cmd
+
+    def test_defaults_none_equivalent_to_empty(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(), defaults=None)
+        assert "--model" not in cmd
+        assert "--effort" not in cmd
+
+    def test_model_effort_before_append_system_prompt(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            log_file_path="/log.log",
+            defaults={"model": "sonnet", "effort": "medium"},
+        )
+        asp_idx = cmd.index("--append-system-prompt")
+        assert cmd.index("--model") < asp_idx
+        assert cmd.index("--effort") < asp_idx
+
+
+class TestGetStepsModelEffort(unittest.TestCase):
+    """Tests for get_steps() with model/effort fields."""
+
+    def _config(self, step: dict) -> dict:
+        return {"steps": [step]}
+
+    def test_step_without_model_effort_omits_keys(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s"}))
+        assert "model" not in steps[0]
+        assert "effort" not in steps[0]
+
+    def test_step_with_model_and_effort(self) -> None:
+        steps = get_steps(self._config(
+            {"name": "s", "prompt": "/s", "model": "opus", "effort": "high"}
+        ))
+        assert steps[0]["model"] == "opus"
+        assert steps[0]["effort"] == "high"
+
+    def test_step_with_only_effort(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s", "effort": "low"}))
+        assert steps[0]["effort"] == "low"
+        assert "model" not in steps[0]
+
+    def test_raises_on_empty_model(self) -> None:
+        with self.assertRaises(SystemExit):
+            get_steps(self._config({"name": "s", "prompt": "/s", "model": ""}))
+
+    def test_raises_on_non_string_effort(self) -> None:
+        with self.assertRaises(SystemExit):
+            get_steps(self._config({"name": "s", "prompt": "/s", "effort": 5}))
+
+    def test_none_value_treated_as_absent(self) -> None:
+        steps = get_steps(self._config(
+            {"name": "s", "prompt": "/s", "model": None, "effort": None}
+        ))
+        assert "model" not in steps[0]
+        assert "effort" not in steps[0]
+
+
+class TestYamlIntegration(unittest.TestCase):
+    """Integration: load_workflow + get_steps + resolve_defaults + build_command."""
+
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp())
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_full_yaml_flow(self) -> None:
+        yaml_path = self.tmp_dir / "wf.yaml"
+        yaml_path.write_text(
+            "defaults:\n"
+            "  model: sonnet\n"
+            "  effort: medium\n"
+            "steps:\n"
+            "  - name: heavy\n"
+            "    prompt: /heavy\n"
+            "    model: opus\n"
+            "    effort: high\n"
+            "  - name: light\n"
+            "    prompt: /light\n"
+            "    effort: low\n",
+            encoding="utf-8",
+        )
+        config = load_workflow(yaml_path)
+        steps = get_steps(config)
+        defaults = resolve_defaults(config)
+
+        # Heavy step overrides both
+        heavy_cmd = build_command("claude", "-p", [], steps[0], defaults=defaults)
+        assert heavy_cmd[heavy_cmd.index("--model") + 1] == "opus"
+        assert heavy_cmd[heavy_cmd.index("--effort") + 1] == "high"
+
+        # Light step inherits model from defaults, overrides effort
+        light_cmd = build_command("claude", "-p", [], steps[1], defaults=defaults)
+        assert light_cmd[light_cmd.index("--model") + 1] == "sonnet"
+        assert light_cmd[light_cmd.index("--effort") + 1] == "low"
 
 
 if __name__ == "__main__":

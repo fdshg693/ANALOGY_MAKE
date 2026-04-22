@@ -36,9 +36,19 @@ preview:
 
 # --- インフラ管理 (Bicep) ---
 
-# インフラのデプロイ（初回作成 / 更新）
+# インフラのデプロイ（初回作成 / 更新、アプリ本体は配備しない）
 deploy-infra:
 	az deployment sub create --location japaneast --template-file infra/main.bicep --parameters infra/main.bicepparam
+
+# アプリ本体のデプロイ（既存 App Service に ZIP 配備）
+# 既にビルド済みなら `just deploy-app true` で build をスキップ可能
+deploy-app skip_build="false":
+	pnpm install
+	if ("{{skip_build}}" -ne "true") { pnpm build } else { Write-Host "Skipping build because skip_build=true" }
+	if (-not (Test-Path .output)) { throw "Build output '.output' not found. Run 'just deploy-app' or pass skip_build=true only after a successful build." }
+	if (Test-Path deploy.zip) { Remove-Item deploy.zip -Force }
+	Compress-Archive -Path .output\* -DestinationPath deploy.zip -Force
+	az webapp deploy --resource-group {{resource_group}} --name {{app_name}} --src-path deploy.zip --type zip
 
 # インフラの変更プレビュー（what-if）
 preview-infra:

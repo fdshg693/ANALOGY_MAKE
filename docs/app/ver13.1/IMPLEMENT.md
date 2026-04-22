@@ -72,7 +72,7 @@ if (config.tavilyApiKey) {
 ### 初期化完了（`createAgent` 呼び出し後）
 
 ```typescript
-logger.agent.info('Agent initialized', { model: 'gpt-4.1-mini', tools: tools.length, dbPath: DB_PATH })
+logger.agent.info('Agent initialized', { model: 'gpt-5.4', tools: tools.length, dbPath: DB_PATH })
 ```
 
 ---
@@ -192,7 +192,7 @@ logger.history.warn('History load failed', { threadId, error: e instanceof Error
 [thread] Database initialized { path: './data/langgraph-checkpoints.db', mode: 'WAL' }
 [agent] Initializing agent...
 [agent] Tavily Search enabled (maxResults: 3)
-[agent] Agent initialized { model: 'gpt-4.1-mini', tools: 1, dbPath: './data/langgraph-checkpoints.db' }
+[agent] Agent initialized { model: 'gpt-5.4', tools: 1, dbPath: './data/langgraph-checkpoints.db' }
 [chat] Request received { threadId: 'abc-123', messageLength: 42 }
 [thread] Thread upserted { threadId: 'abc-123' }
 [chat] Streaming started { threadId: 'abc-123' }

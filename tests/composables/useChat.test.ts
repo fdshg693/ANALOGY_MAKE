@@ -76,7 +76,7 @@ describe('useChat', () => {
     expect(mockFetch).toHaveBeenCalledWith('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'テスト入力', threadId: 'mock-uuid' }),
+      body: JSON.stringify({ message: 'テスト入力', threadId: 'mock-uuid', branchId: 'main' }),
       signal: expect.any(AbortSignal),
     })
   })
@@ -214,6 +214,30 @@ describe('useChat', () => {
       expect(true).toBe(true)
     })
 
+    it('branchId を指定すると history / chat リクエストに反映される', async () => {
+      vi.mocked(parseSSEStream).mockImplementation(async (_stream, callbacks) => {
+        callbacks.onDone()
+      })
+      mockFetch.mockResolvedValue({
+        ok: true,
+        body: 'mock-stream',
+        json: () => Promise.resolve({ messages: [] }),
+      })
+
+      const { threadId, branchId, sendMessage, switchThread } = useChat()
+      switchThread('thread-a', 'branch-x')
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith('/api/chat/history?threadId=thread-a&branchId=branch-x')
+      })
+      expect(threadId.value).toBe('thread-a')
+      expect(branchId.value).toBe('branch-x')
+
+      await sendMessage('こんにちは')
+      expect(mockFetch).toHaveBeenCalledWith('/api/chat', expect.objectContaining({
+        body: JSON.stringify({ message: 'こんにちは', threadId: 'thread-a', branchId: 'branch-x' }),
+      }))
+    })
+
     it('切り替え後に loadHistory が呼ばれる', async () => {
       const { messages, switchThread } = useChat()
 
@@ -234,7 +258,7 @@ describe('useChat', () => {
         expect(messages.value).toHaveLength(2)
       })
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/chat/history?threadId=existing-id')
+      expect(mockFetch).toHaveBeenCalledWith('/api/chat/history?threadId=existing-id&branchId=main')
     })
   })
 })

@@ -1,5 +1,5 @@
 mode:
-  auto: false
+  auto: true
 
 command:
   executable: claude
@@ -25,12 +25,18 @@ command:
 
       **Note**: Run export/import via the Bash tool with `python scripts/claude_sync.py <command>`."
 
+defaults:
+  model: sonnet
+  effort: medium
+
 steps:
   - name: quick_plan
     prompt: /quick_plan
 
   - name: quick_impl
     prompt: /quick_impl
+    effort: high
 
   - name: quick_doc
     prompt: /quick_doc
+    effort: low

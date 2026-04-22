@@ -40,3 +40,8 @@ ver17.0 で追加した会話分岐機能は、LangGraph checkpointer（SqliteSa
 - `docs/app/ver17.0/IMPLEMENT.md` §リスク・不確実性 R1 / R2 / R6
 - `docs/app/ver17.0/MEMO.md`
 - 既存 `ISSUES/app/medium/getState-timing.md` / `additional-kwargs-sqlite.md` と同時検証可能（デプロイ後 1 回の手動テストで 3 つまとめて close できる）
+
+## ステータス
+
+修正適用済み（ver17.0）、デプロイ検証待ち。
+R1（updateState 複数メッセージ）・R2（`::` 含む thread_id）は本番手動テストで初めて確認可能。兆候と対応方針は上記「本番発生時の兆候」セクション参照。

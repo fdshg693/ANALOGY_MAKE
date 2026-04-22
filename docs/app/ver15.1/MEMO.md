@@ -28,10 +28,10 @@
 
 ## ドキュメント更新の提案
 
-- `docs/app/MASTER_PLAN/PHASE3.md` の「1.2 検索設定」を完了扱いに更新
-- `docs/app/ver15.0/CURRENT_backend.md` の `ThreadSettings` 定義と `performSearch` の記述を、ver15.1 の `CHANGES.md` で差分として記録する想定（`wrap_up` フロー想定）
+- `docs/app/MASTER_PLAN.md` の「1.2 検索設定」を完了扱いに更新 → ✅ `wrap_up` で対応済み（ver15.1 で完了マーク追加）
+- `docs/app/ver15.0/CURRENT_backend.md` の差分を `ver15.1/CHANGES.md` で記録 → ✅ `wrap_up` で対応済み（CHANGES.md 新規作成）
 
 ## 潜在的な将来対応（現状スコープ外）
 
-- `app/composables/useSettings.ts` と `server/utils/thread-store.ts` の `ThreadSettings` 型が重複定義。共通型モジュールへの切り出しは ROUGH_PLAN でも scope 外と明記されているため、ver15.1 では触らず
-- 検索結果が JSON 文字列のまま LLM に渡っている（`performSearch` 戻り値の `JSON.stringify` 分岐）。PHASE3 項目2「検索結果の可視化」での構造化パースとまとめて検討する余地あり
+- `app/composables/useSettings.ts` と `server/utils/thread-store.ts` の `ThreadSettings` 型が重複定義。共通型モジュールへの切り出しは ROUGH_PLAN でも scope 外と明記されているため、ver15.1 では触らず → ⏭️ 次バージョン以降の技術的負債として MEMO に記録のみ（ISSUES 化は次のメジャーバージョン計画時に判断）
+- 検索結果が JSON 文字列のまま LLM に渡っている（`performSearch` 戻り値の `JSON.stringify` 分岐）。PHASE3 項目2「検索結果の可視化」での構造化パースとまとめて検討する余地あり → ⏭️ PHASE3 項目2と重複するため ISSUES 化不要（MASTER_PLAN で管理）

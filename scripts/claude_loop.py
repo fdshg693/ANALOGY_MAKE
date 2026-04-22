@@ -163,15 +163,42 @@ def get_steps(config: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(name, str):
             raise SystemExit(f"Step {index} field 'name' must be a string.")
 
-        steps.append(
-            {
-                "name": name,
-                "prompt": prompt,
-                "args": normalize_cli_args(raw_step.get("args"), f"steps[{index}].args"),
-            }
-        )
+        step_entry: dict[str, Any] = {
+            "name": name,
+            "prompt": prompt,
+            "args": normalize_cli_args(raw_step.get("args"), f"steps[{index}].args"),
+        }
+        for key in ("model", "effort"):
+            if key in raw_step and raw_step[key] is not None:
+                value = raw_step[key]
+                if not isinstance(value, str) or not value.strip():
+                    raise SystemExit(f"steps[{index}].{key} must be a non-empty string.")
+                step_entry[key] = value
+        steps.append(step_entry)
 
     return steps
+
+
+def resolve_defaults(config: dict[str, Any]) -> dict[str, str]:
+    """Extract defaults.model / defaults.effort from config.
+
+    Returns a dict with only the keys that were explicitly set. Absent keys are
+    omitted so dict.get() / 'in' checks can be used uniformly with step-level
+    overrides.
+    """
+    defaults_config = config.get("defaults") or {}
+    if not isinstance(defaults_config, dict):
+        raise SystemExit("'defaults' must be a mapping when provided.")
+
+    result: dict[str, str] = {}
+    for key in ("model", "effort"):
+        value = defaults_config.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value.strip():
+            raise SystemExit(f"'defaults.{key}' must be a non-empty string.")
+        result[key] = value
+    return result
 
 
 def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str], list[str]]:
@@ -266,8 +293,14 @@ def build_command(
     log_file_path: str | None = None,
     auto_mode: bool = False,
     feedbacks: list[str] | None = None,
+    defaults: dict[str, str] | None = None,
 ) -> list[str]:
     cmd = [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
+    defaults = defaults or {}
+    for key, flag in (("model", "--model"), ("effort", "--effort")):
+        value = step.get(key, defaults.get(key))
+        if value is not None:
+            cmd.extend([flag, value])
     system_prompts: list[str] = []
     if log_file_path:
         system_prompts.append(f"Current workflow log: {log_file_path}")
@@ -441,6 +474,7 @@ def main() -> int:
         )
 
     executable, prompt_flag, common_args, auto_args = resolve_command_config(config)
+    defaults = resolve_defaults(config)
     auto_mode = resolve_mode(config, args.auto)
     if auto_mode:
         common_args = common_args + auto_args
@@ -482,13 +516,13 @@ def main() -> int:
             exit_code = _run_steps(
                 step_iter, steps, executable, prompt_flag, common_args,
                 cwd, args.dry_run, tee, log_path, auto_mode,
-                uncommitted_status,
+                uncommitted_status, defaults,
             )
     else:
         exit_code = _run_steps(
             step_iter, steps, executable, prompt_flag, common_args,
             cwd, args.dry_run, None, None, auto_mode,
-            uncommitted_status,
+            uncommitted_status, defaults,
         )
 
     total_duration = time.monotonic() - workflow_start
@@ -515,6 +549,7 @@ def _run_steps(
     log_path: Path | None,
     auto_mode: bool = False,
     uncommitted_status: str | None = None,
+    defaults: dict[str, str] | None = None,
 ) -> int:
     """Execute workflow steps with optional logging via TeeWriter."""
     total_steps = len(steps)
@@ -553,20 +588,37 @@ def _run_steps(
         feedback_files = [path for path, _ in matched]
 
         log_file_path = str(log_path) if tee is not None else None
-        command = build_command(executable, prompt_flag, common_args, step, log_file_path, auto_mode, feedbacks=feedback_contents or None)
+        command = build_command(
+            executable, prompt_flag, common_args, step, log_file_path, auto_mode,
+            feedbacks=feedback_contents or None, defaults=defaults,
+        )
         command_str = shlex.join(command)
 
         step_start = time.monotonic()
         step_start_time = datetime.now()
+
+        effective_defaults = defaults or {}
+        effective_model = step.get("model", effective_defaults.get("model"))
+        effective_effort = step.get("effort", effective_defaults.get("effort"))
+        descriptor_parts: list[str] = []
+        if effective_model is not None:
+            descriptor_parts.append(f"Model: {effective_model}")
+        if effective_effort is not None:
+            descriptor_parts.append(f"Effort: {effective_effort}")
+        descriptor_line = ", ".join(descriptor_parts) if descriptor_parts else None
 
         # --- Step header ---
         if tee is not None:
             _out("")
             _out(f"[{absolute_index}/{total_steps}] {step['name']}")
             _out(f"Started: {step_start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            if descriptor_line:
+                _out(descriptor_line)
             _out(f"$ {command_str}")
         else:
             print_step_header(absolute_index, total_steps, step["name"])
+            if descriptor_line:
+                _out(descriptor_line)
             print(f"$ {command_str}")
 
         if dry_run:

@@ -25,18 +25,27 @@ command:
 
       **Note**: Run export/import via the Bash tool with `python scripts/claude_sync.py <command>`."
 
+defaults:
+  model: sonnet
+  effort: medium
+
 steps:
   - name: split_plan
     prompt: /split_plan
+    model: opus
+    effort: high
 
   - name: imple_plan
     prompt: /imple_plan
+    model: opus
+    effort: high
 
   - name: wrap_up
     prompt: /wrap_up
 
   - name: write_current
     prompt: /write_current
+    effort: low
 
   - name: retrospective
     prompt: /retrospective

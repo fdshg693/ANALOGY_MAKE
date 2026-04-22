@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch, MagicMock
 
 # Add the scripts directory to sys.path so we can import claude_loop
@@ -18,6 +19,7 @@ from claude_loop import (
     notify_completion, _notify_toast, resolve_mode, resolve_command_config,
     check_uncommitted_changes, auto_commit_changes,
     parse_feedback_frontmatter, load_feedbacks, consume_feedbacks,
+    resolve_defaults, get_steps, load_workflow,
 )
 
 
@@ -572,6 +574,167 @@ class TestBuildCommandWithFeedbacks(unittest.TestCase):
     def test_no_feedbacks(self) -> None:
         cmd = self._build(feedbacks=None)
         assert "--append-system-prompt" not in cmd
+
+
+class TestResolveDefaults(unittest.TestCase):
+    """Tests for resolve_defaults()."""
+
+    def test_returns_empty_when_key_absent(self) -> None:
+        assert resolve_defaults({}) == {}
+
+    def test_parses_model_and_effort(self) -> None:
+        result = resolve_defaults({"defaults": {"model": "opus", "effort": "high"}})
+        assert result == {"model": "opus", "effort": "high"}
+
+    def test_omits_absent_keys(self) -> None:
+        result = resolve_defaults({"defaults": {"model": "opus"}})
+        assert result == {"model": "opus"}
+        assert "effort" not in result
+
+    def test_raises_on_non_mapping(self) -> None:
+        with self.assertRaises(SystemExit):
+            resolve_defaults({"defaults": "opus"})
+
+    def test_raises_on_empty_string(self) -> None:
+        with self.assertRaises(SystemExit):
+            resolve_defaults({"defaults": {"model": ""}})
+
+    def test_raises_on_non_string(self) -> None:
+        with self.assertRaises(SystemExit):
+            resolve_defaults({"defaults": {"effort": 5}})
+
+
+class TestBuildCommandWithModelEffort(unittest.TestCase):
+    """Tests for build_command() with defaults/model/effort."""
+
+    def _make_step(self, **kwargs: Any) -> dict:
+        step = {"name": "test", "prompt": "/test", "args": []}
+        step.update(kwargs)
+        return step
+
+    def test_no_model_no_effort_when_unset(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(), defaults={})
+        assert "--model" not in cmd
+        assert "--effort" not in cmd
+
+    def test_uses_defaults_when_step_omits(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            defaults={"model": "sonnet", "effort": "medium"},
+        )
+        assert "--model" in cmd
+        assert cmd[cmd.index("--model") + 1] == "sonnet"
+        assert "--effort" in cmd
+        assert cmd[cmd.index("--effort") + 1] == "medium"
+
+    def test_step_overrides_defaults(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(model="opus"),
+            defaults={"model": "sonnet"},
+        )
+        assert cmd[cmd.index("--model") + 1] == "opus"
+        assert "sonnet" not in cmd
+
+    def test_step_sets_when_no_defaults(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(effort="high"), defaults={},
+        )
+        assert cmd[cmd.index("--effort") + 1] == "high"
+        assert "--model" not in cmd
+
+    def test_defaults_none_equivalent_to_empty(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(), defaults=None)
+        assert "--model" not in cmd
+        assert "--effort" not in cmd
+
+    def test_model_effort_before_append_system_prompt(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            log_file_path="/log.log",
+            defaults={"model": "sonnet", "effort": "medium"},
+        )
+        asp_idx = cmd.index("--append-system-prompt")
+        assert cmd.index("--model") < asp_idx
+        assert cmd.index("--effort") < asp_idx
+
+
+class TestGetStepsModelEffort(unittest.TestCase):
+    """Tests for get_steps() with model/effort fields."""
+
+    def _config(self, step: dict) -> dict:
+        return {"steps": [step]}
+
+    def test_step_without_model_effort_omits_keys(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s"}))
+        assert "model" not in steps[0]
+        assert "effort" not in steps[0]
+
+    def test_step_with_model_and_effort(self) -> None:
+        steps = get_steps(self._config(
+            {"name": "s", "prompt": "/s", "model": "opus", "effort": "high"}
+        ))
+        assert steps[0]["model"] == "opus"
+        assert steps[0]["effort"] == "high"
+
+    def test_step_with_only_effort(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s", "effort": "low"}))
+        assert steps[0]["effort"] == "low"
+        assert "model" not in steps[0]
+
+    def test_raises_on_empty_model(self) -> None:
+        with self.assertRaises(SystemExit):
+            get_steps(self._config({"name": "s", "prompt": "/s", "model": ""}))
+
+    def test_raises_on_non_string_effort(self) -> None:
+        with self.assertRaises(SystemExit):
+            get_steps(self._config({"name": "s", "prompt": "/s", "effort": 5}))
+
+    def test_none_value_treated_as_absent(self) -> None:
+        steps = get_steps(self._config(
+            {"name": "s", "prompt": "/s", "model": None, "effort": None}
+        ))
+        assert "model" not in steps[0]
+        assert "effort" not in steps[0]
+
+
+class TestYamlIntegration(unittest.TestCase):
+    """Integration: load_workflow + get_steps + resolve_defaults + build_command."""
+
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp())
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_full_yaml_flow(self) -> None:
+        yaml_path = self.tmp_dir / "wf.yaml"
+        yaml_path.write_text(
+            "defaults:\n"
+            "  model: sonnet\n"
+            "  effort: medium\n"
+            "steps:\n"
+            "  - name: heavy\n"
+            "    prompt: /heavy\n"
+            "    model: opus\n"
+            "    effort: high\n"
+            "  - name: light\n"
+            "    prompt: /light\n"
+            "    effort: low\n",
+            encoding="utf-8",
+        )
+        config = load_workflow(yaml_path)
+        steps = get_steps(config)
+        defaults = resolve_defaults(config)
+
+        # Heavy step overrides both
+        heavy_cmd = build_command("claude", "-p", [], steps[0], defaults=defaults)
+        assert heavy_cmd[heavy_cmd.index("--model") + 1] == "opus"
+        assert heavy_cmd[heavy_cmd.index("--effort") + 1] == "high"
+
+        # Light step inherits model from defaults, overrides effort
+        light_cmd = build_command("claude", "-p", [], steps[1], defaults=defaults)
+        assert light_cmd[light_cmd.index("--model") + 1] == "sonnet"
+        assert light_cmd[light_cmd.index("--effort") + 1] == "low"
 
 
 if __name__ == "__main__":

@@ -72,7 +72,9 @@ const GRANULARITY_INSTRUCTIONS: Record<string, string> = {
 /** ベースプロンプトに粒度設定・カスタム指示を付加する */
 export function buildSystemPrompt(
   basePrompt: string,
-  settings?: Pick<ThreadSettings, 'granularity' | 'customInstruction'>,
+  settings?: Pick<ThreadSettings, 'granularity' | 'customInstruction'> & {
+    systemPromptOverride?: string
+  },
 ): string {
   if (!settings) return basePrompt
   let prompt = basePrompt
@@ -80,5 +82,11 @@ export function buildSystemPrompt(
   if (instruction) prompt += instruction
   const custom = settings.customInstruction?.trim()
   if (custom) prompt += `\n\n## 追加指示\n${custom}`
+
+  const override = settings.systemPromptOverride?.trim()
+  if (process.env.NODE_ENV !== 'production' && override) {
+    prompt = `${override}\n\n---\n\n${prompt}`
+  }
+
   return prompt
 }

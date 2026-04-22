@@ -4,10 +4,14 @@ export interface SearchSettings {
   maxResults: number
 }
 
+export type ResponseMode = 'ai' | 'echo'
+
 export interface ThreadSettings {
   granularity: 'concise' | 'standard' | 'detailed'
   customInstruction: string
   search: SearchSettings
+  responseMode: ResponseMode
+  systemPromptOverride: string
 }
 
 const DEFAULT_SEARCH_SETTINGS: SearchSettings = {
@@ -20,6 +24,8 @@ const DEFAULT_SETTINGS: ThreadSettings = {
   granularity: 'standard',
   customInstruction: '',
   search: { ...DEFAULT_SEARCH_SETTINGS },
+  responseMode: 'ai',
+  systemPromptOverride: '',
 }
 
 export function useSettings() {

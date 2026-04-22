@@ -33,6 +33,8 @@ describe('thread-settings', () => {
     expect(settings.granularity).toBe('standard')
     expect(settings.customInstruction).toBe('')
     expect(settings.search).toEqual(DEFAULT_SEARCH_SETTINGS)
+    expect(settings.responseMode).toBe('ai')
+    expect(settings.systemPromptOverride).toBe('')
   })
 
   it('DEFAULT_SEARCH_SETTINGS — 既定値は enabled=true, depth=basic, maxResults=3', async () => {
@@ -54,6 +56,8 @@ describe('thread-settings', () => {
       granularity: 'detailed' as const,
       customInstruction: 'テスト指示',
       search: { ...DEFAULT_SEARCH_SETTINGS },
+      responseMode: 'ai' as const,
+      systemPromptOverride: '',
     }
     updateThreadSettings('thread-1', newSettings)
     const retrieved = getThreadSettings('thread-1')
@@ -63,14 +67,26 @@ describe('thread-settings', () => {
   it('updateThreadSettings — concise を設定して取得できる', async () => {
     const { upsertThread, updateThreadSettings, getThreadSettings, DEFAULT_SEARCH_SETTINGS } = await importFresh()
     upsertThread('thread-1', 'テスト')
-    updateThreadSettings('thread-1', { granularity: 'concise', customInstruction: '', search: { ...DEFAULT_SEARCH_SETTINGS } })
+    updateThreadSettings('thread-1', {
+      granularity: 'concise',
+      customInstruction: '',
+      search: { ...DEFAULT_SEARCH_SETTINGS },
+      responseMode: 'ai',
+      systemPromptOverride: '',
+    })
     expect(getThreadSettings('thread-1').granularity).toBe('concise')
   })
 
   it('updateThreadSettings — detailed を設定して取得できる', async () => {
     const { upsertThread, updateThreadSettings, getThreadSettings, DEFAULT_SEARCH_SETTINGS } = await importFresh()
     upsertThread('thread-1', 'テスト')
-    updateThreadSettings('thread-1', { granularity: 'detailed', customInstruction: '', search: { ...DEFAULT_SEARCH_SETTINGS } })
+    updateThreadSettings('thread-1', {
+      granularity: 'detailed',
+      customInstruction: '',
+      search: { ...DEFAULT_SEARCH_SETTINGS },
+      responseMode: 'ai',
+      systemPromptOverride: '',
+    })
     expect(getThreadSettings('thread-1').granularity).toBe('detailed')
   })
 
@@ -78,9 +94,46 @@ describe('thread-settings', () => {
     const { upsertThread, updateThreadSettings, getThreadSettings } = await importFresh()
     upsertThread('thread-1', 'テスト')
     const search = { enabled: false, depth: 'advanced' as const, maxResults: 7 }
-    updateThreadSettings('thread-1', { granularity: 'standard', customInstruction: '', search })
+    updateThreadSettings('thread-1', {
+      granularity: 'standard',
+      customInstruction: '',
+      search,
+      responseMode: 'ai',
+      systemPromptOverride: '',
+    })
     const retrieved = getThreadSettings('thread-1')
     expect(retrieved.search).toEqual(search)
+  })
+
+  it('updateThreadSettings — responseMode=echo と systemPromptOverride を保存・取得できる', async () => {
+    const { upsertThread, updateThreadSettings, getThreadSettings, DEFAULT_SEARCH_SETTINGS } = await importFresh()
+    upsertThread('thread-1', 'テスト')
+    updateThreadSettings('thread-1', {
+      granularity: 'standard',
+      customInstruction: '',
+      search: { ...DEFAULT_SEARCH_SETTINGS },
+      responseMode: 'echo',
+      systemPromptOverride: 'デバッグ用前置き',
+    })
+    const retrieved = getThreadSettings('thread-1')
+    expect(retrieved.responseMode).toBe('echo')
+    expect(retrieved.systemPromptOverride).toBe('デバッグ用前置き')
+  })
+
+  it('getThreadSettings — responseMode / systemPromptOverride を持たない旧 JSON でもデフォルトが補われる', async () => {
+    const { getThreadSettings } = await importFresh()
+    getThreadSettings('dummy')
+    const legacyJson = JSON.stringify({
+      granularity: 'standard',
+      customInstruction: '',
+      search: { enabled: true, depth: 'basic', maxResults: 3 },
+    })
+    mockDb.prepare(
+      "INSERT INTO threads (thread_id, title, settings) VALUES (?, ?, ?)"
+    ).run('thread-legacy-r', 'Legacy Response', legacyJson)
+    const settings = getThreadSettings('thread-legacy-r')
+    expect(settings.responseMode).toBe('ai')
+    expect(settings.systemPromptOverride).toBe('')
   })
 
   it('getThreadSettings — 後方互換: search フィールドを持たない旧 JSON でもデフォルトがマージされる', async () => {
@@ -125,10 +178,16 @@ describe('thread-settings', () => {
   })
 
   it('updateThreadSettings — customInstruction を正しく保持する', async () => {
-    const { upsertThread, updateThreadSettings, getThreadSettings } = await importFresh()
+    const { upsertThread, updateThreadSettings, getThreadSettings, DEFAULT_SEARCH_SETTINGS } = await importFresh()
     upsertThread('thread-1', 'テスト')
     const instruction = 'ユーザーに対して丁寧語で回答してください。専門用語は避けてください。'
-    updateThreadSettings('thread-1', { granularity: 'standard', customInstruction: instruction })
+    updateThreadSettings('thread-1', {
+      granularity: 'standard',
+      customInstruction: instruction,
+      search: { ...DEFAULT_SEARCH_SETTINGS },
+      responseMode: 'ai',
+      systemPromptOverride: '',
+    })
     const retrieved = getThreadSettings('thread-1')
     expect(retrieved.customInstruction).toBe(instruction)
     expect(retrieved.granularity).toBe('standard')

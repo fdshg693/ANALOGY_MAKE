@@ -1,6 +1,6 @@
 import { defineEventHandler, getRouterParam, readBody, createError } from 'h3'
 import { updateThreadSettings, DEFAULT_SEARCH_SETTINGS } from '../../../utils/thread-store'
-import type { ThreadSettings, SearchSettings } from '../../../utils/thread-store'
+import type { ThreadSettings, SearchSettings, ResponseMode } from '../../../utils/thread-store'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -20,7 +20,20 @@ export default defineEventHandler(async (event) => {
       : DEFAULT_SEARCH_SETTINGS.maxResults,
   }
 
-  const settings: ThreadSettings = { granularity, customInstruction, search }
+  const responseMode: ResponseMode = body.responseMode === 'echo' ? 'echo' : 'ai'
+
+  const isDev = process.env.NODE_ENV !== 'production'
+  const systemPromptOverride = isDev && typeof body.systemPromptOverride === 'string'
+    ? body.systemPromptOverride.slice(0, 2000)
+    : ''
+
+  const settings: ThreadSettings = {
+    granularity,
+    customInstruction,
+    search,
+    responseMode,
+    systemPromptOverride,
+  }
   updateThreadSettings(id, settings)
   return settings
 })

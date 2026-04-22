@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AIMessageChunk } from '@langchain/core/messages'
 
 // Mock h3 functions
@@ -25,6 +25,7 @@ vi.mock('h3', () => ({
 const mockGraph = {
   stream: vi.fn(),
   getState: vi.fn().mockResolvedValue({ values: { messages: [] } }),
+  updateState: vi.fn().mockResolvedValue(undefined),
 }
 
 vi.mock('../../server/utils/analogy-agent', () => ({
@@ -40,6 +41,8 @@ vi.mock('../../server/utils/thread-store', () => ({
     granularity: 'standard',
     customInstruction: '',
     search: { enabled: true, depth: 'basic', maxResults: 3 },
+    responseMode: 'ai',
+    systemPromptOverride: '',
   }),
 }))
 
@@ -48,6 +51,8 @@ vi.stubGlobal('useRuntimeConfig', () => ({ openaiApiKey: 'test-key', tavilyApiKe
 // Import handler after mocks are set up
 import handler from '~/server/api/chat.post'
 import { readBody } from 'h3'
+import { getThreadSettings, updateThreadTitle } from '../../server/utils/thread-store'
+import { HumanMessage, AIMessage } from '@langchain/core/messages'
 
 describe('POST /api/chat', () => {
   beforeEach(() => {
@@ -193,6 +198,8 @@ describe('POST /api/chat', () => {
               granularity: 'standard',
               customInstruction: '',
               search: { enabled: true, depth: 'basic', maxResults: 3 },
+              responseMode: 'ai',
+              systemPromptOverride: '',
             },
           }),
         }),
@@ -288,6 +295,113 @@ describe('POST /api/chat', () => {
         (call: any) => call[0].event === 'search_results',
       )
       expect(searchCalls).toHaveLength(0)
+    })
+  })
+
+  describe('エコーモード', () => {
+    beforeEach(() => {
+      vi.mocked(getThreadSettings).mockReturnValue({
+        granularity: 'standard',
+        customInstruction: '',
+        search: { enabled: true, depth: 'basic', maxResults: 3 },
+        responseMode: 'echo',
+        systemPromptOverride: '',
+      })
+    })
+
+    afterEach(() => {
+      vi.mocked(getThreadSettings).mockReturnValue({
+        granularity: 'standard',
+        customInstruction: '',
+        search: { enabled: true, depth: 'basic', maxResults: 3 },
+        responseMode: 'ai',
+        systemPromptOverride: '',
+      })
+    })
+
+    it('エコーモード時: agent.stream が呼ばれない / updateState が 1 回呼ばれる', async () => {
+      vi.mocked(readBody).mockResolvedValue({ message: 'こんにちは', threadId: 'thread-echo' })
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith({
+          event: 'done',
+          data: '{}',
+        })
+      })
+
+      expect(mockGraph.stream).not.toHaveBeenCalled()
+      expect(mockGraph.updateState).toHaveBeenCalledTimes(1)
+      const updateCall = mockGraph.updateState.mock.calls[0]
+      expect(updateCall[0]).toEqual({ configurable: { thread_id: 'thread-echo' } })
+      const msgs = (updateCall[1] as { messages: unknown[] }).messages
+      expect(msgs).toHaveLength(2)
+      expect(msgs[0]).toBeInstanceOf(HumanMessage)
+      expect(msgs[1]).toBeInstanceOf(AIMessage)
+      expect((msgs[0] as HumanMessage).content).toBe('こんにちは')
+      expect((msgs[1] as AIMessage).content).toBe('こんにちは')
+    })
+
+    it('エコーモード時: token SSE をチャンクで配信 → done', async () => {
+      vi.mocked(readBody).mockResolvedValue({ message: 'abcdefghij', threadId: 'thread-echo' })
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith({
+          event: 'done',
+          data: '{}',
+        })
+      })
+
+      const tokenCalls = mockEventStream.push.mock.calls.filter(
+        (call: any) => call[0].event === 'token',
+      )
+      expect(tokenCalls.length).toBeGreaterThan(0)
+      const combined = tokenCalls
+        .map((c: any) => JSON.parse(c[0].data).content)
+        .join('')
+      expect(combined).toBe('abcdefghij')
+    })
+
+    it('エコーモード時: search_results イベントは送らない', async () => {
+      vi.mocked(readBody).mockResolvedValue({ message: 'テスト', threadId: 'thread-echo' })
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith({
+          event: 'done',
+          data: '{}',
+        })
+      })
+
+      const searchCalls = mockEventStream.push.mock.calls.filter(
+        (call: any) => call[0].event === 'search_results',
+      )
+      expect(searchCalls).toHaveLength(0)
+    })
+
+    it('エコーモード時: 初回なら入力先頭 10 文字でタイトルを設定（LLM 不使用）', async () => {
+      vi.mocked(readBody).mockResolvedValue({
+        message: 'これはタイトル用の長めの入力テキストです',
+        threadId: 'thread-echo',
+      })
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith({
+          event: 'done',
+          data: '{}',
+        })
+      })
+
+      expect(updateThreadTitle).toHaveBeenCalledWith(
+        'thread-echo',
+        'これはタイトル用の長'.slice(0, 10),
+      )
     })
   })
 

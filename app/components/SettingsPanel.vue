@@ -17,13 +17,29 @@ const granularityOptions: { value: ThreadSettings['granularity']; label: string 
   { value: 'detailed', label: '詳細' },
 ]
 
+const responseModeOptions: { value: ThreadSettings['responseMode']; label: string }[] = [
+  { value: 'ai', label: 'AI' },
+  { value: 'echo', label: 'エコー' },
+]
+
+const isDev = import.meta.dev
+
 function selectGranularity(value: ThreadSettings['granularity']) {
   emit('update:settings', { ...props.settings, granularity: value })
+}
+
+function selectResponseMode(value: ThreadSettings['responseMode']) {
+  emit('update:settings', { ...props.settings, responseMode: value })
 }
 
 function updateCustomInstruction(event: Event) {
   const target = event.target as HTMLTextAreaElement
   emit('update:settings', { ...props.settings, customInstruction: target.value })
+}
+
+function updateSystemPromptOverride(event: Event) {
+  const target = event.target as HTMLTextAreaElement
+  emit('update:settings', { ...props.settings, systemPromptOverride: target.value })
 }
 
 function updateSearch(patch: Partial<SearchSettings>) {
@@ -100,6 +116,31 @@ const maxResultsOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
           <option v-for="n in maxResultsOptions" :key="n" :value="n">{{ n }}件</option>
         </select>
       </div>
+    </div>
+
+    <div class="settings-section">
+      <label class="settings-label">応答モード:</label>
+      <div class="granularity-buttons">
+        <button
+          v-for="opt in responseModeOptions"
+          :key="opt.value"
+          :class="['granularity-btn', { active: settings.responseMode === opt.value }]"
+          @click="selectResponseMode(opt.value)"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="isDev" class="settings-section">
+      <label class="settings-label">システムプロンプト上書き（開発のみ）:</label>
+      <textarea
+        class="custom-instruction"
+        :value="settings.systemPromptOverride"
+        placeholder="各ノードのシステムプロンプト先頭に追記されます"
+        rows="4"
+        @input="updateSystemPromptOverride"
+      />
     </div>
 
     <div class="settings-actions">

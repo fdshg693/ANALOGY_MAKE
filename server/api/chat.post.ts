@@ -1,8 +1,57 @@
 import { createEventStream, readBody, createError, defineEventHandler } from 'h3'
-import { AIMessageChunk, HumanMessage } from '@langchain/core/messages'
+import { AIMessage, AIMessageChunk, HumanMessage } from '@langchain/core/messages'
 import { getAnalogyAgent } from '../utils/analogy-agent'
 import { upsertThread, getThreadTitle, updateThreadTitle, getThreadSettings } from '../utils/thread-store'
 import { logger } from '../utils/logger'
+
+type EventStream = ReturnType<typeof createEventStream>
+
+function chunkText(text: string, size: number): string[] {
+  const chunks: string[] = []
+  for (let i = 0; i < text.length; i += size) chunks.push(text.slice(i, i + size))
+  return chunks.length ? chunks : ['']
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function handleEchoResponse(
+  threadId: string,
+  userMessage: string,
+  eventStream: EventStream,
+): Promise<void> {
+  logger.chat.info('Echo mode started', { threadId, messageLength: userMessage.length })
+
+  const chunks = chunkText(userMessage, 8)
+  for (const chunk of chunks) {
+    await eventStream.push({
+      event: 'token',
+      data: JSON.stringify({ content: chunk }),
+    })
+    await sleep(30)
+  }
+
+  try {
+    const agent = await getAnalogyAgent()
+    await agent.updateState(
+      { configurable: { thread_id: threadId } },
+      { messages: [new HumanMessage(userMessage), new AIMessage(userMessage)] },
+    )
+  } catch (e) {
+    logger.chat.warn('Echo mode updateState failed', {
+      threadId,
+      error: e instanceof Error ? e.message : 'Unknown error',
+    })
+  }
+
+  await eventStream.push({ event: 'done', data: '{}' })
+
+  const currentTitle = getThreadTitle(threadId)
+  if (currentTitle === '新しいチャット' || currentTitle === null) {
+    updateThreadTitle(threadId, userMessage.slice(0, 10))
+  }
+}
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
@@ -24,6 +73,11 @@ export default defineEventHandler(async (event) => {
       upsertThread(body.threadId)
 
       const settings = getThreadSettings(body.threadId)
+
+      if (settings.responseMode === 'echo') {
+        await handleEchoResponse(body.threadId, body.message, eventStream)
+        return
+      }
 
       const stream = await agent.stream(
         { messages: [new HumanMessage(body.message)] },

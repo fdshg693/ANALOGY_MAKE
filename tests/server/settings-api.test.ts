@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock h3 functions
 vi.mock('h3', () => ({
@@ -21,6 +21,8 @@ vi.mock('../../server/utils/thread-store', () => ({
     granularity: 'standard',
     customInstruction: '',
     search: { enabled: true, depth: 'basic', maxResults: 3 },
+    responseMode: 'ai',
+    systemPromptOverride: '',
   }),
   updateThreadSettings: vi.fn(),
   DEFAULT_SEARCH_SETTINGS: { enabled: true, depth: 'basic', maxResults: 3 },
@@ -77,11 +79,15 @@ describe('PUT /api/threads/[id]/settings', () => {
       granularity: 'concise',
       customInstruction: 'テスト指示',
       search: { enabled: false, depth: 'advanced', maxResults: 5 },
+      responseMode: 'ai',
+      systemPromptOverride: '',
     })
     expect(result).toEqual({
       granularity: 'concise',
       customInstruction: 'テスト指示',
       search: { enabled: false, depth: 'advanced', maxResults: 5 },
+      responseMode: 'ai',
+      systemPromptOverride: '',
     })
   })
 
@@ -94,11 +100,15 @@ describe('PUT /api/threads/[id]/settings', () => {
       granularity: 'standard',
       customInstruction: '',
       search: DEFAULT_SEARCH_SETTINGS,
+      responseMode: 'ai',
+      systemPromptOverride: '',
     })
     expect(result).toEqual({
       granularity: 'standard',
       customInstruction: '',
       search: DEFAULT_SEARCH_SETTINGS,
+      responseMode: 'ai',
+      systemPromptOverride: '',
     })
   })
 
@@ -113,6 +123,8 @@ describe('PUT /api/threads/[id]/settings', () => {
       granularity: 'standard',
       customInstruction: expected,
       search: DEFAULT_SEARCH_SETTINGS,
+      responseMode: 'ai',
+      systemPromptOverride: '',
     })
     expect(result.customInstruction).toHaveLength(500)
   })
@@ -185,6 +197,60 @@ describe('PUT /api/threads/[id]/settings', () => {
     await expect((putHandler as Function)({} as any)).rejects.toMatchObject({
       statusCode: 400,
       statusMessage: 'id is required',
+    })
+  })
+
+  it('responseMode=echo を受理する', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'standard',
+      customInstruction: '',
+      responseMode: 'echo',
+    })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.responseMode).toBe('echo')
+  })
+
+  it('不正な responseMode は ai にフォールバック', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'standard',
+      customInstruction: '',
+      responseMode: 'invalid',
+    })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.responseMode).toBe('ai')
+  })
+
+  it('systemPromptOverride は dev 環境で 2000 文字に切り詰める', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    const longOverride = 'x'.repeat(3000)
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'standard',
+      customInstruction: '',
+      systemPromptOverride: longOverride,
+    })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.systemPromptOverride).toHaveLength(2000)
+  })
+
+  describe('本番環境での systemPromptOverride 正規化', () => {
+    beforeEach(() => {
+      vi.stubEnv('NODE_ENV', 'production')
+    })
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('本番環境では systemPromptOverride は空文字に正規化される', async () => {
+      vi.mocked(getRouterParam).mockReturnValue('thread-1')
+      vi.mocked(readBody).mockResolvedValue({
+        granularity: 'standard',
+        customInstruction: '',
+        systemPromptOverride: '本番での上書き試行',
+      })
+      const result = await (putHandler as Function)({} as any)
+      expect(result.systemPromptOverride).toBe('')
     })
   })
 })

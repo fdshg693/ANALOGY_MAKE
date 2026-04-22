@@ -14,19 +14,28 @@ from unittest.mock import patch, MagicMock
 
 # Add the scripts directory to sys.path so we can import claude_loop
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from claude_loop import (
-    create_log_path, get_head_commit, format_duration, build_command, parse_args,
-    notify_completion, _notify_toast, resolve_mode, resolve_command_config,
-    check_uncommitted_changes, auto_commit_changes,
-    parse_feedback_frontmatter, load_feedbacks, consume_feedbacks,
-    resolve_defaults, get_steps, load_workflow,
+from claude_loop import parse_args
+from claude_loop_lib.workflow import (
+    load_workflow, get_steps, resolve_defaults,
+    resolve_command_config, resolve_mode,
 )
+from claude_loop_lib.feedbacks import (
+    parse_feedback_frontmatter, load_feedbacks, consume_feedbacks,
+)
+from claude_loop_lib.commands import build_command
+from claude_loop_lib.logging_utils import (
+    create_log_path, format_duration,
+)
+from claude_loop_lib.git_utils import (
+    get_head_commit, check_uncommitted_changes, auto_commit_changes,
+)
+from claude_loop_lib.notify import notify_completion, _notify_toast
 
 
 class TestCreateLogPath(unittest.TestCase):
     """Tests for create_log_path()."""
 
-    @patch("claude_loop.datetime")
+    @patch("claude_loop_lib.logging_utils.datetime")
     def test_generates_timestamped_filename(self, mock_datetime: MagicMock) -> None:
         mock_datetime.now.return_value.strftime.return_value = "20260404_120000"
         workflow_path = Path("workflows/my_workflow.yaml")
@@ -36,7 +45,7 @@ class TestCreateLogPath(unittest.TestCase):
 
         assert result.name == "20260404_120000_my_workflow.log"
 
-    @patch("claude_loop.datetime")
+    @patch("claude_loop_lib.logging_utils.datetime")
     def test_path_is_inside_log_dir(self, mock_datetime: MagicMock) -> None:
         mock_datetime.now.return_value.strftime.return_value = "20260404_120000"
         log_dir = Path("logs/workflow")
@@ -46,7 +55,7 @@ class TestCreateLogPath(unittest.TestCase):
 
         assert result.parent == log_dir.resolve()
 
-    @patch("claude_loop.datetime")
+    @patch("claude_loop_lib.logging_utils.datetime")
     def test_uses_workflow_stem_not_full_name(self, mock_datetime: MagicMock) -> None:
         mock_datetime.now.return_value.strftime.return_value = "20260101_000000"
         workflow_path = Path("/some/dir/deploy_steps.yaml")
@@ -57,7 +66,7 @@ class TestCreateLogPath(unittest.TestCase):
         assert "deploy_steps" in result.name
         assert ".yaml" not in result.name
 
-    @patch("claude_loop.datetime")
+    @patch("claude_loop_lib.logging_utils.datetime")
     def test_creates_log_directory(self, mock_datetime: MagicMock) -> None:
         mock_datetime.now.return_value.strftime.return_value = "20260101_000000"
         log_dir = Path("logs/deep/nested")
@@ -71,7 +80,7 @@ class TestCreateLogPath(unittest.TestCase):
 class TestGetHeadCommit(unittest.TestCase):
     """Tests for get_head_commit()."""
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_commit_hash_on_success(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="abc1234\n")
         result = get_head_commit(Path("/some/repo"))
@@ -85,20 +94,20 @@ class TestGetHeadCommit(unittest.TestCase):
             check=False,
         )
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_none_on_nonzero_exit(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=128, stdout="")
         result = get_head_commit(Path("/not-a-repo"))
 
         assert result is None
 
-    @patch("claude_loop.subprocess.run", side_effect=FileNotFoundError("git not found"))
+    @patch("claude_loop_lib.git_utils.subprocess.run", side_effect=FileNotFoundError("git not found"))
     def test_returns_none_when_git_not_found(self, mock_run: MagicMock) -> None:
         result = get_head_commit(Path("/any"))
 
         assert result is None
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_strips_whitespace_from_output(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="  def5678  \n")
         result = get_head_commit(Path("."))
@@ -213,18 +222,18 @@ class TestParseArgsLoggingOptions(unittest.TestCase):
 class TestNotifyCompletion(unittest.TestCase):
     """Tests for notify_completion()."""
 
-    @patch("claude_loop._notify_toast")
+    @patch("claude_loop_lib.notify._notify_toast")
     def test_calls_toast_on_success(self, mock_toast: MagicMock) -> None:
         notify_completion("title", "msg")
         mock_toast.assert_called_once_with("title", "msg")
 
-    @patch("claude_loop._notify_beep")
-    @patch("claude_loop._notify_toast", side_effect=Exception("fail"))
+    @patch("claude_loop_lib.notify._notify_beep")
+    @patch("claude_loop_lib.notify._notify_toast", side_effect=Exception("fail"))
     def test_falls_back_to_beep_on_toast_failure(self, mock_toast: MagicMock, mock_beep: MagicMock) -> None:
         notify_completion("title", "msg")
         mock_beep.assert_called_once_with("title", "msg")
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.notify.subprocess.run")
     def test_toast_escapes_single_quotes(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0)
         _notify_toast("it's done", "user's workflow")
@@ -317,7 +326,7 @@ class TestResolveCommandConfigAutoArgs(unittest.TestCase):
 class TestCheckUncommittedChanges(unittest.TestCase):
     """Tests for check_uncommitted_changes()."""
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_true_when_changes_exist(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout=" M file.txt\n")
         result = check_uncommitted_changes(Path("/repo"))
@@ -328,14 +337,14 @@ class TestCheckUncommittedChanges(unittest.TestCase):
             cwd=Path("/repo"), capture_output=True, text=True, check=False,
         )
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_false_when_no_changes(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         result = check_uncommitted_changes(Path("/repo"))
 
         assert result is False
 
-    @patch("claude_loop.subprocess.run", side_effect=FileNotFoundError("git not found"))
+    @patch("claude_loop_lib.git_utils.subprocess.run", side_effect=FileNotFoundError("git not found"))
     def test_returns_false_when_git_not_found(self, mock_run: MagicMock) -> None:
         result = check_uncommitted_changes(Path("/any"))
 
@@ -345,8 +354,8 @@ class TestCheckUncommittedChanges(unittest.TestCase):
 class TestAutoCommitChanges(unittest.TestCase):
     """Tests for auto_commit_changes()."""
 
-    @patch("claude_loop.get_head_commit", return_value="abc1234")
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.get_head_commit", return_value="abc1234")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_success_returns_commit_hash(self, mock_run: MagicMock, mock_head: MagicMock) -> None:
         result = auto_commit_changes(Path("/repo"))
 
@@ -358,13 +367,13 @@ class TestAutoCommitChanges(unittest.TestCase):
             cwd=Path("/repo"), check=True,
         )
 
-    @patch("claude_loop.subprocess.run", side_effect=subprocess.CalledProcessError(1, "git add"))
+    @patch("claude_loop_lib.git_utils.subprocess.run", side_effect=subprocess.CalledProcessError(1, "git add"))
     def test_returns_none_on_git_add_failure(self, mock_run: MagicMock) -> None:
         result = auto_commit_changes(Path("/repo"))
 
         assert result is None
 
-    @patch("claude_loop.subprocess.run")
+    @patch("claude_loop_lib.git_utils.subprocess.run")
     def test_returns_none_on_git_commit_failure(self, mock_run: MagicMock) -> None:
         def side_effect(*args, **kwargs):
             if args[0][1] == "commit":

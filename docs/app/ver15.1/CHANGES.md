@@ -127,6 +127,20 @@ buildSystemPrompt(basePrompt: string, settings?: Pick<ThreadSettings, 'granulari
 
 ---
 
+### `app/components/SettingsPanel.vue`
+
+**検索設定セクションを追加:**
+
+- `SearchSettings` 型を import に追加
+- `updateSearch(patch: Partial<SearchSettings>)` ヘルパー関数を追加（部分更新を集約）
+- テンプレートに「Web検索:」セクションを追加:
+  - チェックボックス（`search.enabled` トグル）
+  - 検索深度セレクト（`basic` / `advanced`、`enabled === false` 時 disabled）
+  - 取得件数セレクト（1〜10件、`enabled === false` 時 disabled）
+- `searchDepthOptions` / `maxResultsOptions` の静的配列をスクリプト内で定義
+
+---
+
 ## テスト
 
 ### `tests/server/settings-api.test.ts` に 6 ケース追加
@@ -137,6 +151,10 @@ buildSystemPrompt(basePrompt: string, settings?: Pick<ThreadSettings, 'granulari
 - `search.maxResults` が 0（下限クランプ）
 - `search.maxResults` が 11（上限クランプ）
 - `search.maxResults` が非整数（フォールバック）
+
+### `tests/server/chat.test.ts` を更新
+
+`getThreadSettings` のモック戻り値に `search: { enabled: true, depth: 'basic', maxResults: 3 }` を追加して `ThreadSettings` 型変更に追従。`configurable.settings` のアサーションも同様に更新。
 
 ### `tests/server/thread-settings.test.ts` に 2 ケース追加
 

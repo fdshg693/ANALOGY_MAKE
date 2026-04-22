@@ -83,14 +83,18 @@ watch(
       />
 
       <main class="chat-messages" ref="messagesContainer">
-        <ChatMessage
-          v-for="(msg, i) in messages"
-          :key="i"
-          :role="msg.role"
-          :content="msg.content"
-          :is-error="msg.isError"
-          :is-streaming="isStreaming && i === messages.length - 1"
-        />
+        <template v-for="(msg, i) in messages" :key="i">
+          <ChatMessage
+            :role="msg.role"
+            :content="msg.content"
+            :is-error="msg.isError"
+            :is-streaming="isStreaming && i === messages.length - 1"
+          />
+          <SearchResultsList
+            v-if="msg.role === 'assistant' && msg.searchResults?.length"
+            :results="msg.searchResults"
+          />
+        </template>
         <div v-if="isLoading && !isStreaming" class="loading-indicator">
           考え中...
         </div>

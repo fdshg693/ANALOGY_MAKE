@@ -1,9 +1,16 @@
 import { parseSSEStream } from '../utils/sse-parser'
 
+export interface SearchResult {
+  title: string
+  url: string
+  content: string
+}
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string
   isError?: boolean
+  searchResults?: SearchResult[]
 }
 
 export function useChat() {
@@ -65,6 +72,21 @@ export function useChat() {
           assistantMessage.content += content
         },
         onDone() {},
+        onSearchResults(results) {
+          const validated: SearchResult[] = results
+            .filter(
+              (r): r is SearchResult =>
+                typeof r === 'object' &&
+                r !== null &&
+                typeof (r as { title?: unknown }).title === 'string' &&
+                typeof (r as { url?: unknown }).url === 'string' &&
+                typeof (r as { content?: unknown }).content === 'string',
+            )
+            .map((r) => ({ title: r.title, url: r.url, content: r.content }))
+          if (validated.length > 0) {
+            assistantMessage.searchResults = validated
+          }
+        },
         onError(message) {
           const errorText = `\n\n⚠ エラーが発生しました: ${message}`
           if (assistantMessage.content) {

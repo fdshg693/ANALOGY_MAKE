@@ -24,6 +24,7 @@ vi.mock('h3', () => ({
 // Mock the analogy agent
 const mockGraph = {
   stream: vi.fn(),
+  getState: vi.fn().mockResolvedValue({ values: { messages: [] } }),
 }
 
 vi.mock('../../server/utils/analogy-agent', () => ({
@@ -196,6 +197,97 @@ describe('POST /api/chat', () => {
           }),
         }),
       )
+    })
+  })
+
+  describe('search_results SSE', () => {
+    it('最終メッセージに searchResults があれば search_results イベントを送信', async () => {
+      vi.mocked(readBody).mockResolvedValue({ message: 'test', threadId: 'thread-1' })
+
+      const chunks = [
+        [new AIMessageChunk({ content: 'ok' }), { langgraph_node: 'caseSearch' }],
+      ]
+      mockGraph.stream.mockResolvedValue({
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of chunks) yield chunk
+        },
+      })
+      const results = [{ title: 'A', url: 'https://a.test', content: 'a' }]
+      mockGraph.getState.mockResolvedValue({
+        values: {
+          messages: [
+            { type: 'human', content: 'q' },
+            { type: 'ai', content: 'ok', additional_kwargs: { searchResults: results } },
+          ],
+        },
+      })
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith({
+          event: 'done',
+          data: '{}',
+        })
+      })
+
+      expect(mockEventStream.push).toHaveBeenCalledWith({
+        event: 'search_results',
+        data: JSON.stringify({ results }),
+      })
+    })
+
+    it('最終メッセージに searchResults が無ければ search_results イベントを送らない', async () => {
+      vi.mocked(readBody).mockResolvedValue({ message: 'test', threadId: 'thread-1' })
+
+      const chunks = [
+        [new AIMessageChunk({ content: 'ok' }), { langgraph_node: 'caseSearch' }],
+      ]
+      mockGraph.stream.mockResolvedValue({
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of chunks) yield chunk
+        },
+      })
+      mockGraph.getState.mockResolvedValue({
+        values: {
+          messages: [
+            { type: 'human', content: 'q' },
+            { type: 'ai', content: 'ok' },
+          ],
+        },
+      })
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith({
+          event: 'done',
+          data: '{}',
+        })
+      })
+
+      const searchCalls = mockEventStream.push.mock.calls.filter(
+        (call: any) => call[0].event === 'search_results',
+      )
+      expect(searchCalls).toHaveLength(0)
+    })
+
+    it('エラー時は search_results イベントを送らない', async () => {
+      vi.mocked(readBody).mockResolvedValue({ message: 'test', threadId: 'thread-1' })
+      mockGraph.stream.mockRejectedValue(new Error('boom'))
+
+      await handler({} as any)
+
+      await vi.waitFor(() => {
+        expect(mockEventStream.push).toHaveBeenCalledWith(
+          expect.objectContaining({ event: 'error' }),
+        )
+      })
+
+      const searchCalls = mockEventStream.push.mock.calls.filter(
+        (call: any) => call[0].event === 'search_results',
+      )
+      expect(searchCalls).toHaveLength(0)
     })
   })
 

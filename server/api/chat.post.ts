@@ -56,6 +56,29 @@ export default defineEventHandler(async (event) => {
 
       logger.chat.info('Streaming completed', { threadId: body.threadId, responseLength: fullResponse.length })
 
+      try {
+        const finalSnapshot = await agent.getState({
+          configurable: { thread_id: body.threadId },
+        })
+        const finalMessages = finalSnapshot?.values?.messages
+        const lastMessage = Array.isArray(finalMessages)
+          ? finalMessages[finalMessages.length - 1]
+          : undefined
+        const searchResults = (lastMessage as { additional_kwargs?: { searchResults?: unknown } } | undefined)
+          ?.additional_kwargs?.searchResults
+        if (Array.isArray(searchResults) && searchResults.length > 0) {
+          await eventStream.push({
+            event: 'search_results',
+            data: JSON.stringify({ results: searchResults }),
+          })
+        }
+      } catch (e) {
+        logger.chat.warn('search_results snapshot read failed', {
+          threadId: body.threadId,
+          error: e instanceof Error ? e.message : 'Unknown error',
+        })
+      }
+
       await eventStream.push({
         event: 'done',
         data: '{}',

@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger'
 interface CheckpointMessage {
   type: string
   content: unknown
+  additional_kwargs?: Record<string, unknown>
 }
 
 function isChatMessage(msg: unknown): msg is CheckpointMessage & { type: 'human' | 'ai' } {
@@ -14,6 +15,27 @@ function isChatMessage(msg: unknown): msg is CheckpointMessage & { type: 'human'
     'type' in msg &&
     ((msg as CheckpointMessage).type === 'human' || (msg as CheckpointMessage).type === 'ai')
   )
+}
+
+interface SearchResult {
+  title: string
+  url: string
+  content: string
+}
+
+function extractSearchResults(additionalKwargs: Record<string, unknown> | undefined): SearchResult[] {
+  const raw = additionalKwargs?.searchResults
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter(
+      (r): r is SearchResult =>
+        typeof r === 'object' &&
+        r !== null &&
+        typeof (r as { title?: unknown }).title === 'string' &&
+        typeof (r as { url?: unknown }).url === 'string' &&
+        typeof (r as { content?: unknown }).content === 'string',
+    )
+    .map((r) => ({ title: r.title, url: r.url, content: r.content }))
 }
 
 export default defineEventHandler(async (event) => {
@@ -43,10 +65,19 @@ export default defineEventHandler(async (event) => {
 
     const messages = rawMessages
       .filter(isChatMessage)
-      .map((msg) => ({
-        role: msg.type === 'human' ? 'user' as const : 'assistant' as const,
-        content: typeof msg.content === 'string' ? msg.content : '',
-      }))
+      .map((msg) => {
+        const base = {
+          role: msg.type === 'human' ? 'user' as const : 'assistant' as const,
+          content: typeof msg.content === 'string' ? msg.content : '',
+        }
+        if (msg.type === 'ai') {
+          const searchResults = extractSearchResults(msg.additional_kwargs)
+          if (searchResults.length > 0) {
+            return { ...base, searchResults }
+          }
+        }
+        return base
+      })
 
     if (rawMessages.length !== messages.length) {
       logger.history.warn('Messages filtered out', {

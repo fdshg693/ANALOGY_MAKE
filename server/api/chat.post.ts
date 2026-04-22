@@ -168,7 +168,7 @@ async function generateTitle(threadId: string, userMessage: string, aiResponse: 
     const { ChatOpenAI } = await import('@langchain/openai')
     const config = useRuntimeConfig()
     const model = new ChatOpenAI({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5.4',
       temperature: 0,
       maxTokens: 30,
       apiKey: config.openaiApiKey,

@@ -13,7 +13,7 @@
 | 言語 | TypeScript |
 | スタイル | Scoped CSS（外部CSSライブラリなし） |
 | バックエンド | Nuxt Server API Routes |
-| AI連携 | LangGraph StateGraph + LangChain.js + OpenAI API (gpt-4.1-mini, temperature 0.7) + Tavily Search (@langchain/tavily) |
+| AI連携 | LangGraph StateGraph + LangChain.js + OpenAI API (gpt-5.4, temperature 0.7) + Tavily Search (@langchain/tavily) |
 | メモリ | LangGraph SqliteSaver（SQLite永続化、@langchain/langgraph-checkpoint-sqlite） |
 | テスト | Vitest 4（happy-dom 導入済み、現テストは Node 環境で実行） |
 | パッケージマネージャ | pnpm（`packageManager: pnpm@10.26.2` で固定） |

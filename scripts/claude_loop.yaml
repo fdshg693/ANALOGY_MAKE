@@ -45,7 +45,8 @@ steps:
 
   - name: write_current
     prompt: /write_current
-    effort: low
 
   - name: retrospective
     prompt: /retrospective
+    model: opus
+    effort: middle

@@ -93,5 +93,4 @@ python scripts/claude_loop.py --no-notify                            # 完了通
 
 - **セッション継続機能**: `continue: true` / `-r` / `--session-id` / `--output-format stream-json` パーサ（PHASE4.0 残項目）
 - **`defaults` 明示リセット**: YAML で `model: null` 等により個別ステップで defaults を無効化する機能（ver4.0 では `None` は「未指定」扱いで、defaults が継承される仕様）
-- **`scripts/README.md`**: CLI オプション・YAML フォーマットの説明書
 - **`.claude/SKILLS/meta_judge/WORKFLOW.md` のガイドライン改訂**: モデル/effort 使い分け方針の明文化（実運用で挙動を確認してから別バージョンで扱う）

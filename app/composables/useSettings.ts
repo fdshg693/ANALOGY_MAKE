@@ -1,11 +1,25 @@
+export interface SearchSettings {
+  enabled: boolean
+  depth: 'basic' | 'advanced'
+  maxResults: number
+}
+
 export interface ThreadSettings {
   granularity: 'concise' | 'standard' | 'detailed'
   customInstruction: string
+  search: SearchSettings
+}
+
+const DEFAULT_SEARCH_SETTINGS: SearchSettings = {
+  enabled: true,
+  depth: 'basic',
+  maxResults: 3,
 }
 
 const DEFAULT_SETTINGS: ThreadSettings = {
   granularity: 'standard',
   customInstruction: '',
+  search: { ...DEFAULT_SEARCH_SETTINGS },
 }
 
 export function useSettings() {

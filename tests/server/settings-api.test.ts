@@ -13,10 +13,17 @@ vi.mock('h3', () => ({
   },
 }))
 
+const DEFAULT_SEARCH_SETTINGS = { enabled: true, depth: 'basic' as const, maxResults: 3 }
+
 // Mock thread-store
 vi.mock('../../server/utils/thread-store', () => ({
-  getThreadSettings: vi.fn().mockReturnValue({ granularity: 'standard', customInstruction: '' }),
+  getThreadSettings: vi.fn().mockReturnValue({
+    granularity: 'standard',
+    customInstruction: '',
+    search: { enabled: true, depth: 'basic', maxResults: 3 },
+  }),
   updateThreadSettings: vi.fn(),
+  DEFAULT_SEARCH_SETTINGS: { enabled: true, depth: 'basic', maxResults: 3 },
 }))
 
 import getHandler from '~/server/api/threads/[id]/settings.get'
@@ -59,11 +66,23 @@ describe('PUT /api/threads/[id]/settings', () => {
 
   it('有効なデータで設定を保存して返す', async () => {
     vi.mocked(getRouterParam).mockReturnValue('thread-1')
-    vi.mocked(readBody).mockResolvedValue({ granularity: 'concise', customInstruction: 'テスト指示' })
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'concise',
+      customInstruction: 'テスト指示',
+      search: { enabled: false, depth: 'advanced', maxResults: 5 },
+    })
 
     const result = await (putHandler as Function)({} as any)
-    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', { granularity: 'concise', customInstruction: 'テスト指示' })
-    expect(result).toEqual({ granularity: 'concise', customInstruction: 'テスト指示' })
+    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', {
+      granularity: 'concise',
+      customInstruction: 'テスト指示',
+      search: { enabled: false, depth: 'advanced', maxResults: 5 },
+    })
+    expect(result).toEqual({
+      granularity: 'concise',
+      customInstruction: 'テスト指示',
+      search: { enabled: false, depth: 'advanced', maxResults: 5 },
+    })
   })
 
   it('無効な granularity の場合は standard にフォールバック', async () => {
@@ -71,8 +90,16 @@ describe('PUT /api/threads/[id]/settings', () => {
     vi.mocked(readBody).mockResolvedValue({ granularity: 'invalid-value', customInstruction: '' })
 
     const result = await (putHandler as Function)({} as any)
-    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', { granularity: 'standard', customInstruction: '' })
-    expect(result).toEqual({ granularity: 'standard', customInstruction: '' })
+    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', {
+      granularity: 'standard',
+      customInstruction: '',
+      search: DEFAULT_SEARCH_SETTINGS,
+    })
+    expect(result).toEqual({
+      granularity: 'standard',
+      customInstruction: '',
+      search: DEFAULT_SEARCH_SETTINGS,
+    })
   })
 
   it('customInstruction が 500 文字を超える場合は切り詰め', async () => {
@@ -82,8 +109,74 @@ describe('PUT /api/threads/[id]/settings', () => {
 
     const result = await (putHandler as Function)({} as any)
     const expected = longInstruction.slice(0, 500)
-    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', { granularity: 'standard', customInstruction: expected })
+    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', {
+      granularity: 'standard',
+      customInstruction: expected,
+      search: DEFAULT_SEARCH_SETTINGS,
+    })
     expect(result.customInstruction).toHaveLength(500)
+  })
+
+  it('search 省略時は DEFAULT_SEARCH_SETTINGS にフォールバック', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    vi.mocked(readBody).mockResolvedValue({ granularity: 'standard', customInstruction: '' })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.search).toEqual(DEFAULT_SEARCH_SETTINGS)
+  })
+
+  it('search.depth が不正な場合は basic にフォールバック', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'standard',
+      customInstruction: '',
+      search: { enabled: true, depth: 'invalid', maxResults: 3 },
+    })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.search.depth).toBe('basic')
+  })
+
+  it('search.maxResults が範囲外 (0) の場合は 1 にクランプ', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'standard',
+      customInstruction: '',
+      search: { enabled: true, depth: 'basic', maxResults: 0 },
+    })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.search.maxResults).toBe(1)
+  })
+
+  it('search.maxResults が範囲外 (11) の場合は 10 にクランプ', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'standard',
+      customInstruction: '',
+      search: { enabled: true, depth: 'basic', maxResults: 11 },
+    })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.search.maxResults).toBe(10)
+  })
+
+  it('search.maxResults が非整数の場合は DEFAULT にフォールバック', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'standard',
+      customInstruction: '',
+      search: { enabled: true, depth: 'basic', maxResults: 'abc' },
+    })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.search.maxResults).toBe(DEFAULT_SEARCH_SETTINGS.maxResults)
+  })
+
+  it('search.enabled が boolean でない場合は DEFAULT の true にフォールバック', async () => {
+    vi.mocked(getRouterParam).mockReturnValue('thread-1')
+    vi.mocked(readBody).mockResolvedValue({
+      granularity: 'standard',
+      customInstruction: '',
+      search: { enabled: 'yes', depth: 'basic', maxResults: 3 },
+    })
+    const result = await (putHandler as Function)({} as any)
+    expect(result.search.enabled).toBe(true)
   })
 
   it('id が欠落している場合は 400 エラーをスロー', async () => {

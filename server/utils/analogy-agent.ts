@@ -4,7 +4,8 @@ import { ChatOpenAI } from "@langchain/openai"
 import { TavilySearch } from "@langchain/tavily"
 import type { BaseMessage } from "@langchain/core/messages"
 import type { RunnableConfig } from "@langchain/core/runnables"
-import type { ThreadSettings } from "./thread-store"
+import type { ThreadSettings, SearchSettings } from "./thread-store"
+import { DEFAULT_SEARCH_SETTINGS } from "./thread-store"
 import { DB_PATH } from "./db-config"
 import {
   ABSTRACTION_PROMPT,
@@ -51,7 +52,11 @@ function getModel() {
 }
 
 // Tavily Search 直接呼び出し
-async function performSearch(query: string): Promise<string> {
+async function performSearch(query: string, search: SearchSettings): Promise<string> {
+  if (!search.enabled) {
+    logger.agent.info("Tavily Search skipped (disabled by settings)")
+    return ""
+  }
   const config = getRuntimeConfig()
   if (!config.tavilyApiKey) {
     logger.agent.info("Tavily Search skipped (API key not set)")
@@ -59,11 +64,16 @@ async function performSearch(query: string): Promise<string> {
   }
   try {
     const tavily = new TavilySearch({
-      maxResults: 3,
+      maxResults: search.maxResults,
+      searchDepth: search.depth,
       tavilyApiKey: config.tavilyApiKey,
     })
     const results = await tavily.invoke({ query })
-    logger.agent.info("Tavily Search completed", { query: query.slice(0, 50) })
+    logger.agent.info("Tavily Search completed", {
+      query: query.slice(0, 50),
+      depth: search.depth,
+      maxResults: search.maxResults,
+    })
     return typeof results === "string" ? results : JSON.stringify(results)
   } catch (e) {
     logger.agent.warn("Tavily Search failed", { error: e instanceof Error ? e.message : "Unknown" })
@@ -98,7 +108,8 @@ async function abstractionNode(state: typeof AnalogyState.State) {
 // ノード: 事例検索・提示
 async function caseSearchNode(state: typeof AnalogyState.State, config: RunnableConfig) {
   const settings = config?.configurable?.settings as ThreadSettings | undefined
-  const searchResults = await performSearch(state.abstractedProblem)
+  const search = settings?.search ?? DEFAULT_SEARCH_SETTINGS
+  const searchResults = await performSearch(state.abstractedProblem, search)
   const model = getModel()
 
   const contextMessage = [

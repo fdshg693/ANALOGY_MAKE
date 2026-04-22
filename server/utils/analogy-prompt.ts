@@ -70,7 +70,10 @@ const GRANULARITY_INSTRUCTIONS: Record<string, string> = {
 }
 
 /** ベースプロンプトに粒度設定・カスタム指示を付加する */
-export function buildSystemPrompt(basePrompt: string, settings?: ThreadSettings): string {
+export function buildSystemPrompt(
+  basePrompt: string,
+  settings?: Pick<ThreadSettings, 'granularity' | 'customInstruction'>,
+): string {
   if (!settings) return basePrompt
   let prompt = basePrompt
   const instruction = GRANULARITY_INSTRUCTIONS[settings.granularity]

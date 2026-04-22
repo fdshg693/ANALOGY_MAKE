@@ -2,14 +2,28 @@ import Database from 'better-sqlite3'
 import { DB_PATH } from './db-config'
 import { logger } from './logger'
 
+export interface SearchSettings {
+  enabled: boolean
+  depth: 'basic' | 'advanced'
+  maxResults: number
+}
+
 export interface ThreadSettings {
   granularity: 'concise' | 'standard' | 'detailed'
   customInstruction: string
+  search: SearchSettings
+}
+
+export const DEFAULT_SEARCH_SETTINGS: SearchSettings = {
+  enabled: true,
+  depth: 'basic',
+  maxResults: 3,
 }
 
 export const DEFAULT_SETTINGS: ThreadSettings = {
   granularity: 'standard',
   customInstruction: '',
+  search: { ...DEFAULT_SEARCH_SETTINGS },
 }
 
 interface ThreadRecord {
@@ -78,11 +92,16 @@ export function getThreadTitle(threadId: string): string | null {
 export function getThreadSettings(threadId: string): ThreadSettings {
   const db = getDb()
   const row = db.prepare('SELECT settings FROM threads WHERE thread_id = ?').get(threadId) as { settings: string } | undefined
-  if (!row?.settings || row.settings === '{}') return { ...DEFAULT_SETTINGS }
+  if (!row?.settings || row.settings === '{}') return { ...DEFAULT_SETTINGS, search: { ...DEFAULT_SEARCH_SETTINGS } }
   try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(row.settings) }
+    const parsed = JSON.parse(row.settings) as Partial<ThreadSettings>
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      search: { ...DEFAULT_SEARCH_SETTINGS, ...(parsed.search ?? {}) },
+    }
   } catch {
-    return { ...DEFAULT_SETTINGS }
+    return { ...DEFAULT_SETTINGS, search: { ...DEFAULT_SEARCH_SETTINGS } }
   }
 }
 

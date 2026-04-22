@@ -35,7 +35,11 @@ vi.mock('../../server/utils/thread-store', () => ({
   upsertThread: vi.fn(),
   getThreadTitle: vi.fn().mockReturnValue('新しいチャット'),
   updateThreadTitle: vi.fn(),
-  getThreadSettings: vi.fn().mockReturnValue({ granularity: 'standard', customInstruction: '' }),
+  getThreadSettings: vi.fn().mockReturnValue({
+    granularity: 'standard',
+    customInstruction: '',
+    search: { enabled: true, depth: 'basic', maxResults: 3 },
+  }),
 }))
 
 vi.stubGlobal('useRuntimeConfig', () => ({ openaiApiKey: 'test-key', tavilyApiKey: 'test-tavily-key' }))
@@ -184,7 +188,11 @@ describe('POST /api/chat', () => {
         expect.anything(),
         expect.objectContaining({
           configurable: expect.objectContaining({
-            settings: { granularity: 'standard', customInstruction: '' },
+            settings: {
+              granularity: 'standard',
+              customInstruction: '',
+              search: { enabled: true, depth: 'basic', maxResults: 3 },
+            },
           }),
         }),
       )

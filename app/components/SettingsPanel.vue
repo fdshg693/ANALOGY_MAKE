@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ThreadSettings } from '~/composables/useSettings'
+import type { ThreadSettings, SearchSettings } from '~/composables/useSettings'
 
 const props = defineProps<{
   settings: ThreadSettings
@@ -25,6 +25,20 @@ function updateCustomInstruction(event: Event) {
   const target = event.target as HTMLTextAreaElement
   emit('update:settings', { ...props.settings, customInstruction: target.value })
 }
+
+function updateSearch(patch: Partial<SearchSettings>) {
+  emit('update:settings', {
+    ...props.settings,
+    search: { ...props.settings.search, ...patch },
+  })
+}
+
+const searchDepthOptions: { value: SearchSettings['depth']; label: string }[] = [
+  { value: 'basic', label: 'basic' },
+  { value: 'advanced', label: 'advanced' },
+]
+
+const maxResultsOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 </script>
 
 <template>
@@ -52,6 +66,40 @@ function updateCustomInstruction(event: Event) {
         rows="3"
         @input="updateCustomInstruction"
       />
+    </div>
+
+    <div class="settings-section">
+      <label class="settings-label">Web検索:</label>
+      <div class="search-row">
+        <label class="search-toggle">
+          <input
+            type="checkbox"
+            :checked="settings.search.enabled"
+            @change="updateSearch({ enabled: ($event.target as HTMLInputElement).checked })"
+          >
+          <span>有効</span>
+        </label>
+
+        <select
+          class="search-select"
+          :value="settings.search.depth"
+          :disabled="!settings.search.enabled"
+          @change="updateSearch({ depth: ($event.target as HTMLSelectElement).value as SearchSettings['depth'] })"
+        >
+          <option v-for="opt in searchDepthOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+
+        <select
+          class="search-select"
+          :value="settings.search.maxResults"
+          :disabled="!settings.search.enabled"
+          @change="updateSearch({ maxResults: Number(($event.target as HTMLSelectElement).value) })"
+        >
+          <option v-for="n in maxResultsOptions" :key="n" :value="n">{{ n }}件</option>
+        </select>
+      </div>
     </div>
 
     <div class="settings-actions">
@@ -126,6 +174,44 @@ function updateCustomInstruction(event: Event) {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.search-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.search-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.search-select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background: #fff;
+  color: #374151;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.search-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.search-select:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
 }
 
 .settings-actions {

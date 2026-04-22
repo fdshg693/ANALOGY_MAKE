@@ -2,6 +2,7 @@ import { Annotation, StateGraph, START, END, messagesStateReducer } from "@langc
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite"
 import { ChatOpenAI } from "@langchain/openai"
 import { TavilySearch } from "@langchain/tavily"
+import { AIMessage, HumanMessage } from "@langchain/core/messages"
 import type { BaseMessage } from "@langchain/core/messages"
 import type { RunnableConfig } from "@langchain/core/runnables"
 import type { ThreadSettings, SearchSettings } from "./thread-store"
@@ -55,6 +56,28 @@ export interface SearchResult {
   title: string
   url: string
   content: string
+}
+
+export type CurrentStep = 'initial' | 'awaiting_selection' | 'completed'
+
+/**
+ * fork 時、親分岐から切り出したメッセージ配列から新分岐の currentStep を推定する。
+ *
+ * 末尾メッセージ種別から次に走るノードを決める (routeByStep の逆算):
+ *   - 空 / 末尾 Human → 'initial'（次: abstraction → caseSearch）
+ *   - 末尾 AI かつ additional_kwargs.searchResults あり → 'awaiting_selection'（次: solution）
+ *   - 末尾 AI かつ searchResults なし → 'completed'（次: followUp）
+ */
+export function deriveCurrentStep(messages: BaseMessage[]): CurrentStep {
+  if (messages.length === 0) return 'initial'
+  const last = messages[messages.length - 1]
+  if (last instanceof HumanMessage) return 'initial'
+  if (last instanceof AIMessage) {
+    const sr = (last as AIMessage).additional_kwargs?.searchResults
+    if (Array.isArray(sr) && sr.length > 0) return 'awaiting_selection'
+    return 'completed'
+  }
+  return 'initial'
 }
 
 // Tavily Search 直接呼び出し

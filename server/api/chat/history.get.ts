@@ -1,5 +1,6 @@
 import { defineEventHandler, getQuery, createError } from 'h3'
 import { getAnalogyAgent } from '../../utils/analogy-agent'
+import { toLangGraphThreadId, MAIN_BRANCH_ID } from '../../utils/langgraph-thread'
 import { logger } from '../../utils/logger'
 
 interface CheckpointMessage {
@@ -41,16 +42,18 @@ function extractSearchResults(additionalKwargs: Record<string, unknown> | undefi
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const threadId = query.threadId
+  const branchIdRaw = query.branchId
+  const branchId = typeof branchIdRaw === 'string' && branchIdRaw.length > 0 ? branchIdRaw : MAIN_BRANCH_ID
 
   if (!threadId || typeof threadId !== 'string') {
     throw createError({ statusCode: 400, statusMessage: 'threadId is required' })
   }
 
-  logger.history.info('History requested', { threadId })
+  logger.history.info('History requested', { threadId, branchId })
 
   try {
     const agent = await getAnalogyAgent()
-    const snapshot = await agent.getState({ configurable: { thread_id: threadId } })
+    const snapshot = await agent.getState({ configurable: { thread_id: toLangGraphThreadId(threadId, branchId) } })
 
     const rawMessages = snapshot?.values?.messages
     if (!rawMessages || !Array.isArray(rawMessages)) {
@@ -87,11 +90,11 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    logger.history.info('History loaded', { threadId, messageCount: messages.length })
+    logger.history.info('History loaded', { threadId, branchId, messageCount: messages.length })
 
     return { messages }
   } catch (e) {
-    logger.history.warn('History load failed', { threadId, error: e instanceof Error ? e.message : 'Unknown error' })
+    logger.history.warn('History load failed', { threadId, branchId, error: e instanceof Error ? e.message : 'Unknown error' })
     return { messages: [] }
   }
 })

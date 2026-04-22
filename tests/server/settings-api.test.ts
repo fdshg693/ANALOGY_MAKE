@@ -13,8 +13,6 @@ vi.mock('h3', () => ({
   },
 }))
 
-const DEFAULT_SEARCH_SETTINGS = { enabled: true, depth: 'basic' as const, maxResults: 3 }
-
 // Mock thread-store
 vi.mock('../../server/utils/thread-store', () => ({
   getThreadSettings: vi.fn().mockReturnValue({
@@ -23,15 +21,33 @@ vi.mock('../../server/utils/thread-store', () => ({
     search: { enabled: true, depth: 'basic', maxResults: 3 },
     responseMode: 'ai',
     systemPromptOverride: '',
+    activeBranchId: 'main',
   }),
   updateThreadSettings: vi.fn(),
+  DEFAULT_SETTINGS: {
+    granularity: 'standard',
+    customInstruction: '',
+    search: { enabled: true, depth: 'basic', maxResults: 3 },
+    responseMode: 'ai',
+    systemPromptOverride: '',
+    activeBranchId: 'main',
+  },
   DEFAULT_SEARCH_SETTINGS: { enabled: true, depth: 'basic', maxResults: 3 },
 }))
 
+// Mock branch-store (avoid opening real DB in settings.put.ts import)
+vi.mock('../../server/utils/branch-store', () => ({
+  branchBelongsToThread: vi.fn().mockReturnValue(false),
+}))
+
+import { makeThreadSettings } from '../fixtures/settings'
 import getHandler from '~/server/api/threads/[id]/settings.get'
 import putHandler from '~/server/api/threads/[id]/settings.put'
 import { getRouterParam, readBody } from 'h3'
 import { getThreadSettings, updateThreadSettings } from '../../server/utils/thread-store'
+import { branchBelongsToThread } from '../../server/utils/branch-store'
+
+const DEFAULT_SEARCH_SETTINGS = makeThreadSettings().search
 
 describe('GET /api/threads/[id]/settings', () => {
   beforeEach(() => {
@@ -75,20 +91,16 @@ describe('PUT /api/threads/[id]/settings', () => {
     })
 
     const result = await (putHandler as Function)({} as any)
-    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', {
+    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', makeThreadSettings({
       granularity: 'concise',
       customInstruction: 'テスト指示',
       search: { enabled: false, depth: 'advanced', maxResults: 5 },
-      responseMode: 'ai',
-      systemPromptOverride: '',
-    })
-    expect(result).toEqual({
+    }))
+    expect(result).toEqual(makeThreadSettings({
       granularity: 'concise',
       customInstruction: 'テスト指示',
       search: { enabled: false, depth: 'advanced', maxResults: 5 },
-      responseMode: 'ai',
-      systemPromptOverride: '',
-    })
+    }))
   })
 
   it('無効な granularity の場合は standard にフォールバック', async () => {
@@ -96,20 +108,8 @@ describe('PUT /api/threads/[id]/settings', () => {
     vi.mocked(readBody).mockResolvedValue({ granularity: 'invalid-value', customInstruction: '' })
 
     const result = await (putHandler as Function)({} as any)
-    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', {
-      granularity: 'standard',
-      customInstruction: '',
-      search: DEFAULT_SEARCH_SETTINGS,
-      responseMode: 'ai',
-      systemPromptOverride: '',
-    })
-    expect(result).toEqual({
-      granularity: 'standard',
-      customInstruction: '',
-      search: DEFAULT_SEARCH_SETTINGS,
-      responseMode: 'ai',
-      systemPromptOverride: '',
-    })
+    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', makeThreadSettings())
+    expect(result).toEqual(makeThreadSettings())
   })
 
   it('customInstruction が 500 文字を超える場合は切り詰め', async () => {
@@ -119,13 +119,9 @@ describe('PUT /api/threads/[id]/settings', () => {
 
     const result = await (putHandler as Function)({} as any)
     const expected = longInstruction.slice(0, 500)
-    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', {
-      granularity: 'standard',
+    expect(updateThreadSettings).toHaveBeenCalledWith('thread-1', makeThreadSettings({
       customInstruction: expected,
-      search: DEFAULT_SEARCH_SETTINGS,
-      responseMode: 'ai',
-      systemPromptOverride: '',
-    })
+    }))
     expect(result.customInstruction).toHaveLength(500)
   })
 
@@ -232,6 +228,50 @@ describe('PUT /api/threads/[id]/settings', () => {
     })
     const result = await (putHandler as Function)({} as any)
     expect(result.systemPromptOverride).toHaveLength(2000)
+  })
+
+  describe('activeBranchId', () => {
+    it('省略時は main にフォールバック', async () => {
+      vi.mocked(getRouterParam).mockReturnValue('thread-1')
+      vi.mocked(readBody).mockResolvedValue({ granularity: 'standard', customInstruction: '' })
+      const result = await (putHandler as Function)({} as any)
+      expect(result.activeBranchId).toBe('main')
+    })
+
+    it('main は常に受理される', async () => {
+      vi.mocked(getRouterParam).mockReturnValue('thread-1')
+      vi.mocked(readBody).mockResolvedValue({
+        granularity: 'standard',
+        customInstruction: '',
+        activeBranchId: 'main',
+      })
+      const result = await (putHandler as Function)({} as any)
+      expect(result.activeBranchId).toBe('main')
+    })
+
+    it('thread_branches に存在しない branchId は main にフォールバック', async () => {
+      vi.mocked(getRouterParam).mockReturnValue('thread-1')
+      vi.mocked(branchBelongsToThread).mockReturnValue(false)
+      vi.mocked(readBody).mockResolvedValue({
+        granularity: 'standard',
+        customInstruction: '',
+        activeBranchId: 'unknown-uuid',
+      })
+      const result = await (putHandler as Function)({} as any)
+      expect(result.activeBranchId).toBe('main')
+    })
+
+    it('thread_branches に存在する branchId は受理される', async () => {
+      vi.mocked(getRouterParam).mockReturnValue('thread-1')
+      vi.mocked(branchBelongsToThread).mockReturnValue(true)
+      vi.mocked(readBody).mockResolvedValue({
+        granularity: 'standard',
+        customInstruction: '',
+        activeBranchId: 'valid-branch-uuid',
+      })
+      const result = await (putHandler as Function)({} as any)
+      expect(result.activeBranchId).toBe('valid-branch-uuid')
+    })
   })
 
   describe('本番環境での systemPromptOverride 正規化', () => {

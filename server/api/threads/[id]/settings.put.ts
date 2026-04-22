@@ -1,6 +1,8 @@
 import { defineEventHandler, getRouterParam, readBody, createError } from 'h3'
 import { updateThreadSettings, DEFAULT_SEARCH_SETTINGS } from '../../../utils/thread-store'
 import type { ThreadSettings, SearchSettings, ResponseMode } from '../../../utils/thread-store'
+import { MAIN_BRANCH_ID } from '../../../utils/langgraph-thread'
+import { branchBelongsToThread } from '../../../utils/branch-store'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -27,12 +29,19 @@ export default defineEventHandler(async (event) => {
     ? body.systemPromptOverride.slice(0, 2000)
     : ''
 
+  const rawActiveBranchId = typeof body.activeBranchId === 'string' ? body.activeBranchId : MAIN_BRANCH_ID
+  const activeBranchId =
+    rawActiveBranchId === MAIN_BRANCH_ID || branchBelongsToThread(id, rawActiveBranchId)
+      ? rawActiveBranchId
+      : MAIN_BRANCH_ID
+
   const settings: ThreadSettings = {
     granularity,
     customInstruction,
     search,
     responseMode,
     systemPromptOverride,
+    activeBranchId,
   }
   updateThreadSettings(id, settings)
   return settings

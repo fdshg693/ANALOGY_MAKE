@@ -213,6 +213,39 @@ describe('GET /api/chat/history', () => {
     })
   })
 
+  it('branchId 未指定 → main として raw threadId で getState が呼ばれる', async () => {
+    vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1' })
+    mockGraph.getState.mockResolvedValue({ values: { messages: [] } })
+
+    await handler({} as any)
+
+    expect(mockGraph.getState).toHaveBeenCalledWith({
+      configurable: { thread_id: 'thread-1' },
+    })
+  })
+
+  it('branchId=main → raw threadId で getState が呼ばれる', async () => {
+    vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1', branchId: 'main' })
+    mockGraph.getState.mockResolvedValue({ values: { messages: [] } })
+
+    await handler({} as any)
+
+    expect(mockGraph.getState).toHaveBeenCalledWith({
+      configurable: { thread_id: 'thread-1' },
+    })
+  })
+
+  it('非 main の branchId → ${threadId}::${branchId} で getState が呼ばれる', async () => {
+    vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1', branchId: 'uuid-xyz' })
+    mockGraph.getState.mockResolvedValue({ values: { messages: [] } })
+
+    await handler({} as any)
+
+    expect(mockGraph.getState).toHaveBeenCalledWith({
+      configurable: { thread_id: 'thread-1::uuid-xyz' },
+    })
+  })
+
   it('type が human/ai 以外のメッセージはフィルタリングされる', async () => {
     vi.mocked(getQuery).mockReturnValue({ threadId: 'thread-1' })
 

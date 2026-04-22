@@ -12,6 +12,7 @@ export interface ThreadSettings {
   search: SearchSettings
   responseMode: ResponseMode
   systemPromptOverride: string
+  activeBranchId: string
 }
 
 const DEFAULT_SEARCH_SETTINGS: SearchSettings = {
@@ -26,6 +27,7 @@ const DEFAULT_SETTINGS: ThreadSettings = {
   search: { ...DEFAULT_SEARCH_SETTINGS },
   responseMode: 'ai',
   systemPromptOverride: '',
+  activeBranchId: 'main',
 }
 
 export function useSettings() {

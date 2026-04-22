@@ -2,6 +2,7 @@ import { createEventStream, readBody, createError, defineEventHandler } from 'h3
 import { AIMessage, AIMessageChunk, HumanMessage } from '@langchain/core/messages'
 import { getAnalogyAgent } from '../utils/analogy-agent'
 import { upsertThread, getThreadTitle, updateThreadTitle, getThreadSettings } from '../utils/thread-store'
+import { toLangGraphThreadId, MAIN_BRANCH_ID } from '../utils/langgraph-thread'
 import { logger } from '../utils/logger'
 
 type EventStream = ReturnType<typeof createEventStream>
@@ -18,10 +19,11 @@ function sleep(ms: number): Promise<void> {
 
 async function handleEchoResponse(
   threadId: string,
+  branchId: string,
   userMessage: string,
   eventStream: EventStream,
 ): Promise<void> {
-  logger.chat.info('Echo mode started', { threadId, messageLength: userMessage.length })
+  logger.chat.info('Echo mode started', { threadId, branchId, messageLength: userMessage.length })
 
   const chunks = chunkText(userMessage, 8)
   for (const chunk of chunks) {
@@ -35,21 +37,24 @@ async function handleEchoResponse(
   try {
     const agent = await getAnalogyAgent()
     await agent.updateState(
-      { configurable: { thread_id: threadId } },
+      { configurable: { thread_id: toLangGraphThreadId(threadId, branchId) } },
       { messages: [new HumanMessage(userMessage), new AIMessage(userMessage)] },
     )
   } catch (e) {
     logger.chat.warn('Echo mode updateState failed', {
       threadId,
+      branchId,
       error: e instanceof Error ? e.message : 'Unknown error',
     })
   }
 
   await eventStream.push({ event: 'done', data: '{}' })
 
-  const currentTitle = getThreadTitle(threadId)
-  if (currentTitle === '新しいチャット' || currentTitle === null) {
-    updateThreadTitle(threadId, userMessage.slice(0, 10))
+  if (branchId === MAIN_BRANCH_ID) {
+    const currentTitle = getThreadTitle(threadId)
+    if (currentTitle === '新しいチャット' || currentTitle === null) {
+      updateThreadTitle(threadId, userMessage.slice(0, 10))
+    }
   }
 }
 
@@ -63,7 +68,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'threadId is required' })
   }
 
-  logger.chat.info('Request received', { threadId: body.threadId, messageLength: body.message.length })
+  const branchId: string =
+    typeof body.branchId === 'string' && body.branchId.length > 0 ? body.branchId : MAIN_BRANCH_ID
+
+  logger.chat.info('Request received', { threadId: body.threadId, branchId, messageLength: body.message.length })
 
   const agent = await getAnalogyAgent()
   const eventStream = createEventStream(event)
@@ -75,14 +83,14 @@ export default defineEventHandler(async (event) => {
       const settings = getThreadSettings(body.threadId)
 
       if (settings.responseMode === 'echo') {
-        await handleEchoResponse(body.threadId, body.message, eventStream)
+        await handleEchoResponse(body.threadId, branchId, body.message, eventStream)
         return
       }
 
       const stream = await agent.stream(
         { messages: [new HumanMessage(body.message)] },
         {
-          configurable: { thread_id: body.threadId, settings },
+          configurable: { thread_id: toLangGraphThreadId(body.threadId, branchId), settings },
           streamMode: "messages",
         },
       )
@@ -112,7 +120,7 @@ export default defineEventHandler(async (event) => {
 
       try {
         const finalSnapshot = await agent.getState({
-          configurable: { thread_id: body.threadId },
+          configurable: { thread_id: toLangGraphThreadId(body.threadId, branchId) },
         })
         const finalMessages = finalSnapshot?.values?.messages
         const lastMessage = Array.isArray(finalMessages)
@@ -138,10 +146,12 @@ export default defineEventHandler(async (event) => {
         data: '{}',
       })
 
-      // タイトル自動生成（初回メッセージのみ）
-      const currentTitle = getThreadTitle(body.threadId)
-      if (currentTitle === '新しいチャット' || currentTitle === null) {
-        void generateTitle(body.threadId, body.message, fullResponse)
+      // タイトル自動生成（初回メッセージのみ、main 分岐のみ）
+      if (branchId === MAIN_BRANCH_ID) {
+        const currentTitle = getThreadTitle(body.threadId)
+        if (currentTitle === '新しいチャット' || currentTitle === null) {
+          void generateTitle(body.threadId, body.message, fullResponse)
+        }
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error'

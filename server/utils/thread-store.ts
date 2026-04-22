@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { DB_PATH } from './db-config'
+import { MAIN_BRANCH_ID } from './langgraph-thread'
 import { logger } from './logger'
 
 export interface SearchSettings {
@@ -16,6 +17,7 @@ export interface ThreadSettings {
   search: SearchSettings
   responseMode: ResponseMode
   systemPromptOverride: string
+  activeBranchId: string
 }
 
 export const DEFAULT_SEARCH_SETTINGS: SearchSettings = {
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: ThreadSettings = {
   search: { ...DEFAULT_SEARCH_SETTINGS },
   responseMode: 'ai',
   systemPromptOverride: '',
+  activeBranchId: MAIN_BRANCH_ID,
 }
 
 interface ThreadRecord {

@@ -44,11 +44,20 @@ vi.mock('../../server/utils/thread-store', () => ({
     responseMode: 'ai',
     systemPromptOverride: '',
   }),
+  DEFAULT_SETTINGS: {
+    granularity: 'standard',
+    customInstruction: '',
+    search: { enabled: true, depth: 'basic', maxResults: 3 },
+    responseMode: 'ai',
+    systemPromptOverride: '',
+  },
+  DEFAULT_SEARCH_SETTINGS: { enabled: true, depth: 'basic', maxResults: 3 },
 }))
 
 vi.stubGlobal('useRuntimeConfig', () => ({ openaiApiKey: 'test-key', tavilyApiKey: 'test-tavily-key' }))
 
 // Import handler after mocks are set up
+import { makeThreadSettings } from '../fixtures/settings'
 import handler from '~/server/api/chat.post'
 import { readBody } from 'h3'
 import { getThreadSettings, updateThreadTitle } from '../../server/utils/thread-store'
@@ -194,13 +203,7 @@ describe('POST /api/chat', () => {
         expect.anything(),
         expect.objectContaining({
           configurable: expect.objectContaining({
-            settings: {
-              granularity: 'standard',
-              customInstruction: '',
-              search: { enabled: true, depth: 'basic', maxResults: 3 },
-              responseMode: 'ai',
-              systemPromptOverride: '',
-            },
+            settings: makeThreadSettings(),
           }),
         }),
       )
@@ -300,23 +303,13 @@ describe('POST /api/chat', () => {
 
   describe('エコーモード', () => {
     beforeEach(() => {
-      vi.mocked(getThreadSettings).mockReturnValue({
-        granularity: 'standard',
-        customInstruction: '',
-        search: { enabled: true, depth: 'basic', maxResults: 3 },
+      vi.mocked(getThreadSettings).mockReturnValue(makeThreadSettings({
         responseMode: 'echo',
-        systemPromptOverride: '',
-      })
+      }))
     })
 
     afterEach(() => {
-      vi.mocked(getThreadSettings).mockReturnValue({
-        granularity: 'standard',
-        customInstruction: '',
-        search: { enabled: true, depth: 'basic', maxResults: 3 },
-        responseMode: 'ai',
-        systemPromptOverride: '',
-      })
+      vi.mocked(getThreadSettings).mockReturnValue(makeThreadSettings())
     })
 
     it('エコーモード時: agent.stream が呼ばれない / updateState が 1 回呼ばれる', async () => {

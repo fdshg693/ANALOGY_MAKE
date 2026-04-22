@@ -7,6 +7,11 @@ const props = defineProps<{
   content: string
   isError?: boolean
   isStreaming?: boolean
+  editable?: boolean
+}>()
+
+const emit = defineEmits<{
+  'start-edit': []
 }>()
 
 const RENDER_THROTTLE_MS = 80
@@ -65,6 +70,16 @@ onBeforeUnmount(() => {
     <span class="role-label">{{ role === 'user' ? 'You' : 'AI' }}</span>
     <div v-if="role === 'assistant'" class="message-content markdown-body" v-html="renderedHtml"></div>
     <div v-else class="message-content">{{ content }}</div>
+    <button
+      v-if="role === 'user' && editable"
+      type="button"
+      class="edit-btn"
+      aria-label="このメッセージを編集して分岐を作成"
+      @click="emit('start-edit')"
+    >編集</button>
+    <div class="branch-slot">
+      <slot name="branch-nav" />
+    </div>
   </div>
 </template>
 
@@ -82,6 +97,35 @@ onBeforeUnmount(() => {
   align-self: flex-end;
   background-color: #dbeafe;
   color: #1e3a5f;
+  position: relative;
+}
+
+.chat-message.user .edit-btn {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #93c5fd;
+  border-radius: 0.25rem;
+  color: #1e3a5f;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.chat-message.user:hover .edit-btn,
+.chat-message.user .edit-btn:focus-visible {
+  opacity: 1;
+}
+
+.branch-slot {
+  margin-top: 0.25rem;
+}
+
+.branch-slot:empty {
+  margin-top: 0;
 }
 
 .chat-message.assistant {

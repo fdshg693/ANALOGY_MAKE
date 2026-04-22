@@ -7,3 +7,4 @@
 - `./MASTER_PLAN/PHASE3.0.md` — **実装済み**（ver3.0 で軽量ワークフロー `quick` の導入・ワークフロー種別の拡張を実装。quick_plan / quick_impl / quick_doc の 3 SKILL と `claude_loop_quick.yaml` を追加）
 - `./MASTER_PLAN/PHASE4.0.md` — **部分実装**（ver4.0 でステップごとの `--model` / `--effort` 指定を実装。top-level `defaults:` と各ステップでの上書きをサポート。ver4.1 で `scripts/README.md` 新規作成・`claude_loop.py` のモジュール分割（`claude_loop_lib/` 6モジュール）を実装。**未対応**: セッション継続（`continue: true` / `-r` / `--session-id` / `--output-format stream-json`）→ ver4.2 以降で対応予定）
 - `./MASTER_PLAN/PHASE5.0.md` — **未実装**（ISSUE ステータス管理: frontmatter で `raw` / `review` / `ready` / `need_info` を管理。`/split_plan` / `/quick_plan` 冒頭で `review` を詳細化し、`ready` のみを着手対象とする）
+- `./MASTER_PLAN/PHASE6.0.md` — **未実装**（`/split_plan` 前半を `/issue_plan` として分離し、`scripts/issue_worklist.py` で自分向け `ready` / `review` ISSUE を取得。`--workflow auto` をデフォルト化し、前半ステップで `quick` / `full` を自動選択）

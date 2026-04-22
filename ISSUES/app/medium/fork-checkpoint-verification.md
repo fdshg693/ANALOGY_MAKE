@@ -1,3 +1,8 @@
+---
+status: review
+assigned: ai
+priority: medium
+---
 # fork-checkpoint-verification — 会話分岐の LangGraph チェックポイント挙動未検証
 
 ## 概要

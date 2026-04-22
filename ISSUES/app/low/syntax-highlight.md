@@ -1,3 +1,8 @@
+---
+status: ready
+assigned: ai
+priority: low
+---
 # シンタックスハイライト（コードブロックの言語別色分け）
 
 Markdown レンダリングにおいて、コードブロックの言語別シンタックスハイライトは未実装。必要であれば `highlight.js` 等の導入を検討する。

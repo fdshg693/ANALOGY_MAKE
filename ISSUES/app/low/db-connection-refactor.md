@@ -1,3 +1,8 @@
+---
+status: ready
+assigned: ai
+priority: low
+---
 # db-connection-refactor — better-sqlite3 接続の統合とコード重複解消
 
 ## 概要

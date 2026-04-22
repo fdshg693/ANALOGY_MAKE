@@ -1,3 +1,8 @@
+---
+status: review
+assigned: ai
+priority: high
+---
 # Windows環境でjustコマンドでデプロイした場合のエラー
 
 Azure App Service 503エラー: better-sqlite3 ネイティブバイナリ不一致

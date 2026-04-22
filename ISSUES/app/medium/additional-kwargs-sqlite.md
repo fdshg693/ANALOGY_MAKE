@@ -1,3 +1,8 @@
+---
+status: review
+assigned: ai
+priority: medium
+---
 # AIMessage.additional_kwargs の SQLite シリアライズ未検証（ver16.0 先送り）
 
 ## 概要

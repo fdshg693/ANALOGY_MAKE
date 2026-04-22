@@ -1,3 +1,8 @@
+---
+status: ready
+assigned: ai
+priority: low
+---
 # vitest エイリアス不整合 + auto-import モック問題
 
 ## 概要

@@ -1,3 +1,8 @@
+---
+status: review
+assigned: ai
+priority: medium
+---
 # agent.getState() のタイミング問題（ver16.0 先送り）
 
 ## 概要

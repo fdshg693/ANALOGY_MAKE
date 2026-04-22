@@ -1,5 +1,5 @@
 mode:
-  auto: false
+  auto: true
 
 command:
   executable: claude
@@ -49,4 +49,3 @@ steps:
   - name: retrospective
     prompt: /retrospective
     model: opus
-    effort: middle

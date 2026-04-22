@@ -65,3 +65,12 @@ IMPLEMENT.md の手順通りに実装完了。以下 2 機能を追加:
 ## 削除推奨なし
 
 ISSUES/app/medium/動作確認便利化.md は本バージョン完了に伴い削除可能（別途 IMPLEMENT.md §10 参照）。本実装で該当 ISSUE の要件を全て満たしたため、次段で削除する。
+
+---
+
+## wrap_up 完了記録（2026-04-22）
+
+- `npx nuxi typecheck` 実行 → 型エラーなし（vue-router volar の既知警告のみ）
+- `ISSUES/app/medium/動作確認便利化.md` は既に削除済みを確認
+- `getState-timing.md`・`additional-kwargs-sqlite.md` はデプロイ後手動確認待ちのため現状維持
+- コード変更なし → コミットスキップ

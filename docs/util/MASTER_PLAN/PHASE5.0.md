@@ -201,7 +201,7 @@ review フェーズと全体分布をサマリ出力する:
 - 雑なメモは `status: review`, `assigned: ai` を付けて AI にレビューさせる
 - AI が新規 ISSUE を作る場合は、作成時点で必ず `status` と `assigned` を両方付与する
 
-マイグレーションガイドを `docs/util/ver5.0/MIGRATION.md` として別途用意する。
+マイグレーションガイドを `docs/util/ver6.0/MIGRATION.md` として別途用意する。
 
 ### 5. ドキュメント整備
 
@@ -219,8 +219,8 @@ review フェーズと全体分布をサマリ出力する:
 | `.claude/SKILLS/quick_plan/SKILL.md` | 変更 | 同上 |
 | `ISSUES/README.md` | 新規作成 | フロントマター仕様書（`status` + `assigned`） |
 | `scripts/issue_status.py` | 新規作成 | 状態 × 担当の分布確認スクリプト |
-| `docs/util/ver5.0/MIGRATION.md` | 新規作成 | 既存 ISSUE の手動移行ガイド |
-| `docs/util/ver5.0/` | 新規作成 | ROUGH_PLAN / IMPLEMENT / CURRENT / MEMO |
+| `docs/util/ver6.0/MIGRATION.md` | 新規作成 | 既存 ISSUE の手動移行ガイド |
+| `docs/util/ver6.0/` | 新規作成 | ROUGH_PLAN / IMPLEMENT / CURRENT / MEMO |
 
 ## リスク・不確実性
 

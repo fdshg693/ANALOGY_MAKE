@@ -162,9 +162,10 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     status_list = _parse_status_list(args.status)
     items = collect(args.category, args.assigned, status_list)
-    total = len(items)
     limit: int | None = args.limit
+    total: int | None = None
     if limit is not None:
+        total = len(items)
         items = items[:limit]
     if args.format == "json":
         print(format_json(args.category, args.assigned, status_list, items,

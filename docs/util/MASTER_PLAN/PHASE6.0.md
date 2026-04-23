@@ -5,8 +5,8 @@
 | 節 | 内容 | 状態 | バージョン |
 |---|---|---|---|
 | §1 | `issue_worklist.py` 追加 + `claude_loop_lib/issues.py` 共通化 | ✅ 完了 | ver7.0 |
-| §2 | `/issue_plan` SKILL 新設、`/split_plan` 責務縮小 | ⏳ 未着手 | ver7.1 想定 |
-| §3 | `--workflow auto` 導入 | ⏳ 未着手 | ver7.2 想定 |
+| §2 | `/issue_plan` SKILL 新設、`/split_plan` 責務縮小、`/quick_plan` 削除 | ✅ 完了 | ver8.0 |
+| §3 | `--workflow auto` 導入 | ⏳ 未着手 | ver8.1 想定 |
 | §4 | `/retrospective` での `issue_worklist.py` 利用手順追記 | ✅ 完了 | ver7.0 |
 | §5 | ドキュメント・テスト整備（部分完了） | 🔄 一部完了 | ver7.0〜 |
 

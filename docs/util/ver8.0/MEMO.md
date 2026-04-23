@@ -84,8 +84,9 @@ python -c "import yaml; yaml.safe_load(open('scripts/claude_loop.yaml', encoding
 
 ## 更新が必要そうなドキュメント
 
-- `docs/util/MASTER_PLAN/PHASE*.md` — PHASE6.0 §2 の実装状況を「実装済み」に更新する必要がある。`/wrap_up` / `/write_current` ステップで対応予定
-- `docs/util/ver7.0/CURRENT_skills.md` — 旧 `/split_plan` / `/quick_plan` の責務記述が古くなる。`/write_current` ステップで ver8.0 版 `CURRENT.md` に反映する際に差分整理
+- `docs/util/MASTER_PLAN/PHASE6.0.md` — PHASE6.0 §2 の実装状況を「実装済み」に更新 → **wrap_up で対応完了**
+- `docs/util/MASTER_PLAN.md` — PHASE6.0 行のインライン説明文を更新 → **wrap_up で対応完了**
+- `docs/util/ver7.0/CURRENT_skills.md` — 旧 `/split_plan` / `/quick_plan` の責務記述が古くなるが、ver8.0 の `CURRENT.md` 新規作成（`/write_current`）で新版として記述するため旧版の修正は不要 → **/write_current に委任（対応不要）**
 
 ## 未解消・先送り項目
 

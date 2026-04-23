@@ -142,6 +142,10 @@ PHASE7.0 §3・§4・§5 の 3 節を一括で扱う。共通テーマは「CLI 
 - §1 / §2 実装済 → 本バージョン §3 + §4 + §5 実施 → 残り §6 / §7 / §8 は ver13.1 / ver14.0 以降で段階的に扱う（RETROSPECTIVE §3-2 推奨）
 - §6（`/retrospective` からの FEEDBACK handoff）は §4 と接続する設計だが、§6 の実装は handoff ルール確立が主題で独立性が高く、今回のスコープから切り出して次バージョン扱いが適切
 
+## 事前リファクタリング
+
+事前リファクタリング不要（変更対象の `--auto` / `resolve_mode` / `auto_args` 関連コードは既に狭く隔離されており、削除と validation 追加のみで到達できる。FEEDBACKS / REQUESTS 側も削除・文言置換が主。REFACTOR.md は作成しない）。
+
 ## `/split_plan` への申し送り
 
 後続 `/split_plan` は本 ROUGH_PLAN.md のみを起点に IMPLEMENT.md / REFACTOR.md を起こせるよう、以下を踏まえて進めること:

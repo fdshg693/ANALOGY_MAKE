@@ -19,6 +19,7 @@ user-invocable: true
   - 最新バージョンの `CURRENT.md` があれば参照する。`CURRENT.md` が分割されている場合（`CURRENT_{トピック名}.md` へのリンクを含む場合）は、今回のタスクに関連する詳細ファイルのみを読む。`CURRENT.md` がなければユーザーへの質問＋サブエージェントによる調査で把握する
   - `ISSUES/{カテゴリ}` フォルダ配下に優先度の高い課題があれば参照して、把握する（ `high`・`medium`・`low`フォルダに分かれている）
   - 直前バージョンの `RETROSPECTIVE.md` が存在する場合は確認し、未実施の改善提案がないか確認する
+  - **ISSUE レビューフェーズ**: `ISSUES/{カテゴリ}/{high,medium,low}/*.md` を走査し、`status: review` かつ `assigned: ai` の ISSUE を 1 件ずつ Read → 判定 → frontmatter を `ready / ai` または `need_human_action / human` に書き換える。判定基準・書き換え手順・`## AI からの依頼` 追記の書式は `.claude/skills/issue_review/SKILL.md` を一次資料とする。レビュー結果サマリ（遷移件数・対象パス）と状態分布（`status × assigned` の 5 区分）を ROUGH_PLAN 本文冒頭に `## ISSUE レビュー結果` / `## ISSUE 状態サマリ` の見出しで残す
 
 - 目標となるプランを把握して
   - ドキュメントが指定されていなければ、 `docs/{カテゴリ}/MASTER_PLAN.md` を参照して、目標となるプランを把握する
@@ -49,7 +50,7 @@ user-invocable: true
 1. `ROUGH_PLAN.md` を作成する
 
 - `docs/{カテゴリ}/MASTER_PLAN.md`の内容に沿った機能追加・変更を行うか、 `ISSUES/{カテゴリ}` の改善を行うかを決定する。（両方は行わないこと）
-  - **判断基準**: `ISSUES/{カテゴリ}/high/` に未解決の課題が存在する場合はISSUES対応を優先する。high が空の場合は MASTER_PLAN の次の機能追加を進める。ユーザーから明示的な指示がある場合はそちらに従う
+  - **判断基準**: `ISSUES/{カテゴリ}/` から `status: ready` かつ `assigned: ai` の ISSUE を優先度順（high → medium → low）で抽出する。`review` / `need_human_action` / `raw` は着手対象外（直前のレビューフェーズで処理済み / 人間対応待ち）。`ready / ai` が無い場合のみ MASTER_PLAN の次項目に進む。ユーザーから明示的な指示がある場合はそちらに従う
   - どちらの、どのような内容を対応するのか明確に記述すること
 
 - 比較的小規模で完結する切りのいいタスクを切り取り、そのタスクのみにフォーカスして、タスクの内容を説明すること

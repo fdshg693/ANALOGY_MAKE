@@ -1,7 +1,8 @@
 ---
-status: review
+status: ready
 assigned: ai
 priority: medium
+reviewed_at: "2026-04-23"
 ---
 `scripts`に以下の改善を行いたい
 

@@ -142,15 +142,18 @@ command:
     - --disallowedTools "AskUserQuestion"
     - --append-system-prompt "..."
 
-defaults:                      # 省略可。省略時は各ステップで model/effort を個別指定
+defaults:                      # 省略可。省略時は各ステップで個別指定
   model: sonnet
   effort: medium
+  # system_prompt / append_system_prompt も指定可
 
 steps:
   - name: step_name
     prompt: /skill_name
     model: opus                # 省略可。step 側にキーが存在しない場合に defaults を継承
     effort: high               # 同上
+    system_prompt: "..."       # 省略可。Claude CLI の --system-prompt（デフォルト置換）
+    append_system_prompt: "..."# 省略可。Claude CLI の --append-system-prompt
     continue: true             # 省略可。直前ステップのセッションを引き継いで実行
     args:                      # 省略可。追加の CLI 引数（文字列 or リスト、shlex で分解）
       - --some-flag
@@ -160,9 +163,45 @@ steps:
 
 - **mode.auto**: `true` なら `command.args + command.auto_args` を結合した引数で Claude CLI を起動する。CLI の `--auto` で常に強制可能
 - **command.executable / prompt_flag / args / auto_args**: Claude 実行コマンドの構築素材。`args` は全モード共通、`auto_args` は auto モード時のみ追加
-- **defaults.model / effort**: 全ステップに適用する共通値。各ステップでキーが存在しない場合のみ参照される（**キー存在ベース**の上書き）
-- **steps[].model / effort**: ステップ固有の上書き。`None` は「未指定」として扱い defaults を継承。空文字列はエラー
+- **defaults.model / effort / system_prompt / append_system_prompt**: 全ステップに適用する共通値。各ステップでキーが存在しない場合のみ参照される（**キー存在ベース**の上書き）
+- **steps[].model / effort / system_prompt / append_system_prompt**: ステップ固有の上書き。`None` は「未指定」として扱い defaults を継承。空文字列はエラー
 - **steps[].continue**: `true` なら直前ステップで使用した session ID を `-r <uuid>` で再利用し、前ステップの会話履歴を引き継いで実行する。`false` または省略時は新規 session ID（`uuid.uuid4()` で発行）を `--session-id <uuid>` で起動する。bool 以外（文字列・整数等）はエラー
+
+### override 可能なキー（defaults / steps[] 共通）
+
+string 型のみ。`None` は未指定扱い、空文字列はエラー。
+
+| キー | CLI flag | 役割 |
+|---|---|---|
+| `model` | `--model` | 使用モデル（`opus` / `sonnet` 等） |
+| `effort` | `--effort` | 推論努力レベル（`low` / `medium` / `high` / `xhigh` / `max`） |
+| `system_prompt` | `--system-prompt` | デフォルト system prompt を完全置換 |
+| `append_system_prompt` | `--append-system-prompt` | デフォルト system prompt に追加 |
+
+未知キー（例: `temperature`, `max_tokens`）は YAML パース時にエラーで落とす（silent ignore はしない）。Claude CLI が当該フラグをサポートする必要あり。
+
+> **注意**: `system_prompt` はデフォルト system prompt を完全置換するため、CLAUDE.md 自動読込みなど Claude Code 既定挙動を失う可能性がある。通常は `append_system_prompt` を使うこと。
+
+### 継承ルール
+
+各 step の有効設定は次の 3 段階で解決される:
+
+1. `steps[i].<key>` にキーが存在し値が non-`None` → step 値を採用
+2. 上記が無く `defaults.<key>` にキーが存在し値が non-`None` → defaults 値を採用
+3. 上記いずれも無ければ Claude CLI の既定挙動に従う（該当フラグを渡さない）
+
+`append_system_prompt` も同じ 3 段階継承（step 値が defaults 値を上書きし、合成は行わない）。
+
+### `append_system_prompt` の合成順序
+
+`build_command()` は `--append-system-prompt` 引数の本文を以下の順で連結する（区切りは空行 1 つ）:
+
+1. `Current workflow log: {path}` 行（ログ有効時）
+2. AUTO mode 注意文（auto モード時）
+3. `## User Feedback` セクション（feedback 注入時）
+4. step / defaults の `append_system_prompt` 値（指定時）
+
+なお、YAML 側 `command.auto_args` の `--append-system-prompt` と、`build_command()` が組み立てる `--append-system-prompt` は CLI に **独立した 2 つの引数として渡る**（Claude CLI 側で両方とも append される既存挙動。PHASE7.0 §3 で auto_args 整理時に解消予定）。
 
 ### `continue` の使い分け
 
@@ -245,7 +284,7 @@ Uncommitted: {status}                ← 未コミット変更がある場合の
 
 [1/N] {step_name}
 Started: {timestamp}
-Model: {model}, Effort: {effort}, Continue: {bool}, Session: {uuid8}
+Model: {model}, Effort: {effort}, SystemPrompt: set, AppendSystemPrompt: set, Continue: {bool}, Session: {uuid8}
 $ {command}
 --- stdout/stderr ---
 （出力内容）
@@ -261,9 +300,10 @@ Last session (full): {full_uuid}     ← 末尾ステップの完全な session 
 =====================================
 ```
 
-descriptor 行（Model / Effort / Continue / Session）の表示ルール:
+descriptor 行（Model / Effort / SystemPrompt / AppendSystemPrompt / Continue / Session）の表示ルール:
 
-- `Model:` / `Effort:` は値が未指定の側を省略、両方未指定なら descriptor 全体が `Session:` のみになる
+- `Model:` / `Effort:` は値が未指定の側を省略、すべて未指定なら descriptor 全体が `Session:` のみになる
+- `SystemPrompt: set` / `AppendSystemPrompt: set` は step または defaults に該当キーが指定された場合のみ表示（値そのものは表示しない。ログ肥大化防止のため）
 - `Continue:` は `continue: true` を YAML で明示したステップにのみ表示。実際に継続が無効化された場合（`--start > 1` やループ境界）は `Continue: False` と表示される
 - **既知の非対称性**: `continue: false` を明示したステップと `continue` を省略したステップは descriptor 上区別できない（どちらも `Continue:` 行が出ない）。トラブルシュート時は YAML を併読すること
 - `Session:` は常に表示（先頭 8 文字）。完全な UUID はワークフローフッターの `Last session (full):` に出力されるので、`claude -r <uuid>` で手動再開する場合はそちらを参照
@@ -286,7 +326,7 @@ python scripts/claude_sync.py import
 
 ## 拡張ガイド
 
-- **新しい SKILL を追加する場合**: `claude_loop.yaml` または `claude_loop_quick.yaml` の `steps:` に `{ name, prompt, model?, effort?, args? }` を追記する
+- **新しい SKILL を追加する場合**: `claude_loop.yaml` または `claude_loop_quick.yaml` の `steps:` に `{ name, prompt, model?, effort?, system_prompt?, append_system_prompt?, args?, continue? }` を追記する
 - **Python コードを拡張する場合**: 触る関心事に対応する `claude_loop_lib/` 配下のモジュールに手を入れる。責務分担は上記「モジュール構成」を参照
 - **新規 CLI オプションを追加する場合**: `claude_loop.py` の `parse_args()` と、追加した値を渡す先（多くは `claude_loop_lib/commands.py` の `build_command`）の両方を更新する必要がある
 - **フィードバックのスキーマ拡張**: `claude_loop_lib/feedbacks.py` の `parse_feedback_frontmatter` に追加フィールドのパースを足す
@@ -297,7 +337,7 @@ python scripts/claude_sync.py import
 python -m unittest tests.test_claude_loop
 ```
 
-現状 103 件。`tests/test_claude_loop.py` は `claude_loop_lib.*` のパッチターゲットを使って個別モジュールをモックしている。`_run_steps` の session 引き継ぎ統合テストは `claude_loop.subprocess.run` / `claude_loop.uuid.uuid4` をパッチして検証する。
+現状 192 件。`tests/test_claude_loop.py` は `claude_loop_lib.*` のパッチターゲットを使って個別モジュールをモックしている。`_run_steps` の session 引き継ぎ統合テストは `claude_loop.subprocess.run` / `claude_loop.uuid.uuid4` をパッチして検証する。
 
 ## 関連ドキュメント
 

@@ -1,6 +1,8 @@
 # NOTE: 1-step YAML for running /issue_plan alone. Also used as phase 1 of --workflow auto.
 #       The `command` / `mode` / `defaults` sections must stay in sync with claude_loop.yaml
 #       and claude_loop_quick.yaml.
+#       Allowed `defaults`/`steps[]` override keys (string-typed):
+#         model, effort, system_prompt, append_system_prompt
 
 mode:
   auto: true

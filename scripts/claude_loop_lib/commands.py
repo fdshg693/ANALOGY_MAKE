@@ -19,7 +19,11 @@ def build_command(
 ) -> list[str]:
     cmd = [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
     defaults = defaults or {}
-    for key, flag in (("model", "--model"), ("effort", "--effort")):
+    for key, flag in (
+        ("model", "--model"),
+        ("effort", "--effort"),
+        ("system_prompt", "--system-prompt"),
+    ):
         value = step.get(key, defaults.get(key))
         if value is not None:
             cmd.extend([flag, value])
@@ -39,6 +43,9 @@ def build_command(
     if feedbacks:
         feedback_section = "## User Feedback\n\n" + "\n\n---\n\n".join(feedbacks)
         system_prompts.append(feedback_section)
+    append_value = step.get("append_system_prompt", defaults.get("append_system_prompt"))
+    if append_value is not None:
+        system_prompts.append(append_value)
     if system_prompts:
         cmd.extend(["--append-system-prompt", "\n\n".join(system_prompts)])
     return cmd

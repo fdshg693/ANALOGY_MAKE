@@ -26,6 +26,7 @@ from claude_loop_lib.workflow import (
     resolve_command_config, resolve_mode,
     resolve_workflow_value,
     FULL_YAML_FILENAME, QUICK_YAML_FILENAME, ISSUE_PLAN_YAML_FILENAME,
+    OVERRIDE_STRING_KEYS, ALLOWED_STEP_KEYS, ALLOWED_DEFAULTS_KEYS,
 )
 from claude_loop_lib.feedbacks import (
     parse_feedback_frontmatter, load_feedbacks, consume_feedbacks,
@@ -1557,6 +1558,323 @@ class TestAutoWorkflowIntegration(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 claude_loop.main()
         assert "--start 1" in str(cm.exception)
+
+
+class TestResolveDefaultsOverrideKeys(unittest.TestCase):
+    """Tests for resolve_defaults() with new override keys (ver10.0)."""
+
+    def test_parses_system_prompt(self) -> None:
+        result = resolve_defaults({"defaults": {"system_prompt": "hello"}})
+        assert result == {"system_prompt": "hello"}
+
+    def test_parses_append_system_prompt(self) -> None:
+        result = resolve_defaults({"defaults": {"append_system_prompt": "extra"}})
+        assert result == {"append_system_prompt": "extra"}
+
+    def test_parses_all_four_keys_together(self) -> None:
+        result = resolve_defaults({
+            "defaults": {
+                "model": "opus",
+                "effort": "high",
+                "system_prompt": "sp",
+                "append_system_prompt": "asp",
+            }
+        })
+        assert result == {
+            "model": "opus",
+            "effort": "high",
+            "system_prompt": "sp",
+            "append_system_prompt": "asp",
+        }
+
+    def test_raises_on_unknown_key(self) -> None:
+        with self.assertRaises(SystemExit) as cm:
+            resolve_defaults({"defaults": {"temperature": "0.5"}})
+        assert "temperature" in str(cm.exception)
+        assert "Allowed keys" in str(cm.exception)
+
+    def test_raises_on_empty_system_prompt(self) -> None:
+        with self.assertRaises(SystemExit):
+            resolve_defaults({"defaults": {"system_prompt": ""}})
+
+    def test_raises_on_non_string_append(self) -> None:
+        with self.assertRaises(SystemExit):
+            resolve_defaults({"defaults": {"append_system_prompt": 5}})
+
+
+class TestGetStepsOverrideKeys(unittest.TestCase):
+    """Tests for get_steps() with new override keys (ver10.0)."""
+
+    def _config(self, step: dict) -> dict:
+        return {"steps": [step]}
+
+    def test_step_with_system_prompt(self) -> None:
+        steps = get_steps(self._config(
+            {"name": "s", "prompt": "/s", "system_prompt": "hello"}
+        ))
+        assert steps[0]["system_prompt"] == "hello"
+
+    def test_step_with_append_system_prompt(self) -> None:
+        steps = get_steps(self._config(
+            {"name": "s", "prompt": "/s", "append_system_prompt": "extra"}
+        ))
+        assert steps[0]["append_system_prompt"] == "extra"
+
+    def test_step_with_all_four_overrides(self) -> None:
+        steps = get_steps(self._config({
+            "name": "s",
+            "prompt": "/s",
+            "model": "opus",
+            "effort": "high",
+            "system_prompt": "sp",
+            "append_system_prompt": "asp",
+        }))
+        assert steps[0]["model"] == "opus"
+        assert steps[0]["effort"] == "high"
+        assert steps[0]["system_prompt"] == "sp"
+        assert steps[0]["append_system_prompt"] == "asp"
+
+    def test_step_unknown_key_raises(self) -> None:
+        with self.assertRaises(SystemExit) as cm:
+            get_steps(self._config(
+                {"name": "s", "prompt": "/s", "temperature": "0.5"}
+            ))
+        assert "temperature" in str(cm.exception)
+        assert "Allowed keys" in str(cm.exception)
+
+    def test_step_omits_keys_returns_no_keys(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s"}))
+        assert "system_prompt" not in steps[0]
+        assert "append_system_prompt" not in steps[0]
+
+    def test_step_none_value_treated_as_absent(self) -> None:
+        steps = get_steps(self._config({
+            "name": "s",
+            "prompt": "/s",
+            "system_prompt": None,
+            "append_system_prompt": None,
+        }))
+        assert "system_prompt" not in steps[0]
+        assert "append_system_prompt" not in steps[0]
+
+    def test_step_empty_string_raises_for_each_key(self) -> None:
+        for key in OVERRIDE_STRING_KEYS:
+            with self.subTest(key=key):
+                with self.assertRaises(SystemExit):
+                    get_steps(self._config({"name": "s", "prompt": "/s", key: ""}))
+
+
+class TestBuildCommandWithSystemPrompt(unittest.TestCase):
+    """Tests for build_command() with --system-prompt flag (ver10.0)."""
+
+    def _make_step(self, **kwargs: Any) -> dict:
+        step = {"name": "test", "prompt": "/test", "args": []}
+        step.update(kwargs)
+        return step
+
+    def test_step_system_prompt_emits_flag(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(system_prompt="hello"), defaults={},
+        )
+        assert "--system-prompt" in cmd
+        assert cmd[cmd.index("--system-prompt") + 1] == "hello"
+
+    def test_defaults_system_prompt_used_when_step_omits(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            defaults={"system_prompt": "from-defaults"},
+        )
+        assert cmd[cmd.index("--system-prompt") + 1] == "from-defaults"
+
+    def test_step_overrides_defaults_system_prompt(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(system_prompt="step-val"),
+            defaults={"system_prompt": "defaults-val"},
+        )
+        assert cmd[cmd.index("--system-prompt") + 1] == "step-val"
+        assert "defaults-val" not in cmd
+
+    def test_no_system_prompt_when_unset(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(), defaults={})
+        assert "--system-prompt" not in cmd
+
+
+class TestBuildCommandWithAppendSystemPrompt(unittest.TestCase):
+    """Tests for build_command() with append_system_prompt step override (ver10.0)."""
+
+    def _make_step(self, **kwargs: Any) -> dict:
+        step = {"name": "test", "prompt": "/test", "args": []}
+        step.update(kwargs)
+        return step
+
+    def _asp_value(self, cmd: list[str]) -> str:
+        return cmd[cmd.index("--append-system-prompt") + 1]
+
+    def test_step_append_only(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(append_system_prompt="my-append"),
+            defaults={},
+        )
+        assert "--append-system-prompt" in cmd
+        assert self._asp_value(cmd) == "my-append"
+
+    def test_appends_after_log_path(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(append_system_prompt="my-append"),
+            log_file_path="/log.log",
+        )
+        value = self._asp_value(cmd)
+        log_pos = value.index("Current workflow log:")
+        append_pos = value.index("my-append")
+        assert log_pos < append_pos
+
+    def test_appends_after_auto_mode(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(append_system_prompt="my-append"),
+            auto_mode=True,
+        )
+        value = self._asp_value(cmd)
+        auto_pos = value.index("AUTO (unattended)")
+        append_pos = value.index("my-append")
+        assert auto_pos < append_pos
+
+    def test_appends_after_feedbacks(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(append_system_prompt="my-append"),
+            feedbacks=["feedback-text"],
+        )
+        value = self._asp_value(cmd)
+        fb_pos = value.index("## User Feedback")
+        append_pos = value.index("my-append")
+        assert fb_pos < append_pos
+
+    def test_full_combination_order(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(append_system_prompt="my-append"),
+            log_file_path="/log.log",
+            auto_mode=True,
+            feedbacks=["fbtext"],
+        )
+        value = self._asp_value(cmd)
+        log_pos = value.index("Current workflow log:")
+        auto_pos = value.index("AUTO (unattended)")
+        fb_pos = value.index("## User Feedback")
+        append_pos = value.index("my-append")
+        assert log_pos < auto_pos < fb_pos < append_pos
+
+    def test_defaults_append_used_when_step_omits(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            defaults={"append_system_prompt": "default-append"},
+        )
+        assert self._asp_value(cmd) == "default-append"
+
+    def test_step_overrides_defaults_append(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(append_system_prompt="B"),
+            defaults={"append_system_prompt": "A"},
+        )
+        value = self._asp_value(cmd)
+        assert value == "B"
+        assert "A" not in value
+
+
+_UNSET = object()
+
+
+class TestOverrideInheritanceMatrix(unittest.TestCase):
+    """3-stage inheritance matrix verification for each override key (ver10.0)."""
+
+    _FLAGS = {
+        "model": "--model",
+        "effort": "--effort",
+        "system_prompt": "--system-prompt",
+        "append_system_prompt": "--append-system-prompt",
+    }
+
+    def _build(self, key: str, step_value: Any, defaults_value: Any) -> list[str]:
+        step: dict[str, Any] = {"name": "s", "prompt": "/s", "args": []}
+        if step_value is not _UNSET:
+            step[key] = step_value
+        defaults: dict[str, str] = {}
+        if defaults_value is not _UNSET:
+            defaults[key] = defaults_value
+        return build_command("claude", "-p", [], step, defaults=defaults)
+
+    def _flag_value(self, cmd: list[str], flag: str) -> str | None:
+        if flag not in cmd:
+            return None
+        return cmd[cmd.index(flag) + 1]
+
+    def test_step_value_wins_when_both_set(self) -> None:
+        for key in OVERRIDE_STRING_KEYS:
+            with self.subTest(key=key):
+                cmd = self._build(key, "STEP", "DEFAULT")
+                value = self._flag_value(cmd, self._FLAGS[key])
+                if key == "append_system_prompt":
+                    assert value == "STEP"
+                else:
+                    assert value == "STEP"
+
+    def test_step_value_used_when_defaults_absent(self) -> None:
+        for key in OVERRIDE_STRING_KEYS:
+            with self.subTest(key=key):
+                cmd = self._build(key, "STEP", _UNSET)
+                value = self._flag_value(cmd, self._FLAGS[key])
+                assert value == "STEP"
+
+    def test_defaults_used_when_step_absent(self) -> None:
+        for key in OVERRIDE_STRING_KEYS:
+            with self.subTest(key=key):
+                cmd = self._build(key, _UNSET, "DEFAULT")
+                value = self._flag_value(cmd, self._FLAGS[key])
+                assert value == "DEFAULT"
+
+    def test_flag_omitted_when_neither_set(self) -> None:
+        for key in OVERRIDE_STRING_KEYS:
+            with self.subTest(key=key):
+                cmd = self._build(key, _UNSET, _UNSET)
+                assert self._FLAGS[key] not in cmd
+
+    def test_step_none_falls_back_to_defaults(self) -> None:
+        # Note: step entries are produced by get_steps() which strips None
+        # values. This test verifies build_command's behavior when callers pass
+        # a step dict without the key (the post-get_steps state after a None
+        # YAML entry).
+        for key in OVERRIDE_STRING_KEYS:
+            with self.subTest(key=key):
+                cmd = self._build(key, _UNSET, "DEFAULT")
+                value = self._flag_value(cmd, self._FLAGS[key])
+                assert value == "DEFAULT"
+
+
+class TestYamlSyncOverrideKeys(unittest.TestCase):
+    """Verify the 3 shipped workflow YAMLs only use allowed override keys."""
+
+    def _yaml_path(self, name: str) -> Path:
+        return Path(__file__).resolve().parent.parent / "scripts" / name
+
+    def test_full_yaml_uses_only_allowed_keys(self) -> None:
+        config = load_workflow(self._yaml_path(FULL_YAML_FILENAME))
+        steps = get_steps(config)
+        defaults = resolve_defaults(config)
+        # Sanity: parsing succeeded, so all keys are within ALLOWED sets.
+        assert isinstance(steps, list) and len(steps) > 0
+        assert isinstance(defaults, dict)
+
+    def test_quick_yaml_uses_only_allowed_keys(self) -> None:
+        config = load_workflow(self._yaml_path(QUICK_YAML_FILENAME))
+        steps = get_steps(config)
+        defaults = resolve_defaults(config)
+        assert isinstance(steps, list) and len(steps) > 0
+        assert isinstance(defaults, dict)
+
+    def test_issue_plan_yaml_uses_only_allowed_keys(self) -> None:
+        config = load_workflow(self._yaml_path(ISSUE_PLAN_YAML_FILENAME))
+        steps = get_steps(config)
+        defaults = resolve_defaults(config)
+        assert isinstance(steps, list) and len(steps) > 0
+        assert isinstance(defaults, dict)
 
 
 if __name__ == "__main__":

@@ -485,11 +485,21 @@ def _run_steps(
         effective_defaults = defaults or {}
         effective_model = step.get("model", effective_defaults.get("model"))
         effective_effort = step.get("effort", effective_defaults.get("effort"))
+        effective_system_prompt = step.get(
+            "system_prompt", effective_defaults.get("system_prompt")
+        )
+        effective_append_sp = step.get(
+            "append_system_prompt", effective_defaults.get("append_system_prompt")
+        )
         descriptor_parts: list[str] = []
         if effective_model is not None:
             descriptor_parts.append(f"Model: {effective_model}")
         if effective_effort is not None:
             descriptor_parts.append(f"Effort: {effective_effort}")
+        if effective_system_prompt is not None:
+            descriptor_parts.append("SystemPrompt: set")
+        if effective_append_sp is not None:
+            descriptor_parts.append("AppendSystemPrompt: set")
         if requested_continue:
             descriptor_parts.append(f"Continue: {effective_continue}")
         descriptor_parts.append(f"Session: {session_id[:8]}")

@@ -15,6 +15,18 @@ ISSUE_PLAN_YAML_FILENAME = "claude_loop_issue_plan.yaml"
 
 RESERVED_WORKFLOW_VALUES = ("auto", "full", "quick")
 
+OVERRIDE_STRING_KEYS: tuple[str, ...] = (
+    "model",
+    "effort",
+    "system_prompt",
+    "append_system_prompt",
+)
+
+ALLOWED_STEP_KEYS = frozenset(
+    {"name", "prompt", "args", "continue"} | set(OVERRIDE_STRING_KEYS)
+)
+ALLOWED_DEFAULTS_KEYS = frozenset(OVERRIDE_STRING_KEYS)
+
 
 def resolve_workflow_value(value: str, yaml_dir: Path) -> str | Path:
     """Resolve the --workflow CLI value.
@@ -92,12 +104,19 @@ def get_steps(config: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(name, str):
             raise SystemExit(f"Step {index} field 'name' must be a string.")
 
+        unknown_keys = set(raw_step.keys()) - ALLOWED_STEP_KEYS
+        if unknown_keys:
+            raise SystemExit(
+                f"Step {index} has unknown keys: {sorted(unknown_keys)}. "
+                f"Allowed keys: {sorted(ALLOWED_STEP_KEYS)}"
+            )
+
         step_entry: dict[str, Any] = {
             "name": name,
             "prompt": prompt,
             "args": normalize_cli_args(raw_step.get("args"), f"steps[{index}].args"),
         }
-        for key in ("model", "effort"):
+        for key in OVERRIDE_STRING_KEYS:
             if key in raw_step and raw_step[key] is not None:
                 value = raw_step[key]
                 if not isinstance(value, str) or not value.strip():
@@ -114,7 +133,7 @@ def get_steps(config: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def resolve_defaults(config: dict[str, Any]) -> dict[str, str]:
-    """Extract defaults.model / defaults.effort from config.
+    """Extract string-typed override values from defaults.
 
     Returns a dict with only the keys that were explicitly set. Absent keys are
     omitted so dict.get() / 'in' checks can be used uniformly with step-level
@@ -124,8 +143,15 @@ def resolve_defaults(config: dict[str, Any]) -> dict[str, str]:
     if not isinstance(defaults_config, dict):
         raise SystemExit("'defaults' must be a mapping when provided.")
 
+    unknown_keys = set(defaults_config.keys()) - ALLOWED_DEFAULTS_KEYS
+    if unknown_keys:
+        raise SystemExit(
+            f"'defaults' has unknown keys: {sorted(unknown_keys)}. "
+            f"Allowed keys: {sorted(ALLOWED_DEFAULTS_KEYS)}"
+        )
+
     result: dict[str, str] = {}
-    for key in ("model", "effort"):
+    for key in OVERRIDE_STRING_KEYS:
         value = defaults_config.get(key)
         if value is None:
             continue

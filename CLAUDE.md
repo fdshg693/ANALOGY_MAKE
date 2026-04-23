@@ -31,7 +31,7 @@
 - `scripts/` — Python 自動化スクリプト（`claude_loop.py` + `claude_loop_lib/` パッケージ、詳細は `scripts/README.md`）
 - `experiments/` — 実験スクリプト（tsx で実行）
 - `.github/workflows/` — CI/CD（GitHub Actions）
-- `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）
+- `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）。`ISSUES/README.md` にフロントマター仕様（`status` / `assigned` / `reviewed_at`）を定義。`python scripts/issue_status.py` で分布確認
 - `REQUESTS/` — 機能リクエスト（分類別: `workflow/` 等）
 - `FEEDBACKS/` — ワークフローへのユーザーフィードバック（YAML frontmatter で対象ステップ指定、消費後 `done/` へ移動）
 - `infra/` — Azure インフラ定義（Bicep テンプレート）

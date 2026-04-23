@@ -18,6 +18,7 @@
 | `claude_loop_lib/` | ワークフロー実行に必要な関数群をモジュール分割したパッケージ（詳細は下記） |
 | `claude_loop.yaml` | フルワークフロー（6 ステップ）定義 |
 | `claude_loop_quick.yaml` | 軽量ワークフロー（3 ステップ）定義 |
+| `claude_loop_issue_plan.yaml` | `/issue_plan` 単独実行用 YAML（`--workflow auto` の第 1 段でも使用） |
 | `claude_sync.py` | `.claude/` ⇔ `.claude_sync/` 同期スクリプト。CLI `-p` モードで `.claude/` を編集できない制約を回避するためのワークアラウンド |
 | `issue_status.py` | `ISSUES/{category}/{high,medium,low}/*.md` の `status` / `assigned` 分布を表示する読み取り専用スクリプト |
 | `issue_worklist.py` | `assigned` / `status` で ISSUE を絞り込み、`text` / `json` で出力する読み取り専用スクリプト |
@@ -37,14 +38,21 @@
 ## クイックスタート
 
 ```bash
-# フルワークフロー実行
+# デフォルト（= --workflow auto、/issue_plan の判定に従って full/quick 自動選択）
 python scripts/claude_loop.py
 
-# 軽量ワークフロー実行
-python scripts/claude_loop.py -w scripts/claude_loop_quick.yaml
+# 明示的に full/quick を指定
+python scripts/claude_loop.py --workflow full
+python scripts/claude_loop.py --workflow quick
 
-# ステップ 3 から開始
-python scripts/claude_loop.py --start 3
+# /issue_plan だけ 1 回回す（SKILL 調整・ISSUE レビュー定期実行向け）
+python scripts/claude_loop.py --workflow scripts/claude_loop_issue_plan.yaml
+
+# 従来互換: 明示的な YAML パス指定
+python scripts/claude_loop.py --workflow scripts/claude_loop_quick.yaml
+
+# ステップ 3 から開始（auto モードでは使えない）
+python scripts/claude_loop.py --workflow full --start 3
 
 # 2 ループ実行（全ステップを 2 周）
 python scripts/claude_loop.py --max-loops 2
@@ -64,6 +72,15 @@ python scripts/claude_loop.py --auto
 # 事前に未コミット変更を自動コミットしてから開始
 python scripts/claude_loop.py --auto-commit-before
 ```
+
+### `--auto` と `--workflow auto` の違い
+
+| フラグ | 意味 |
+|---|---|
+| `--auto` | 無人実行モード。`command.auto_args` を結合し、AskUserQuestion を無効化 |
+| `--workflow auto` | ワークフロー自動選択。`/issue_plan` を先行実行して結果に応じて full/quick を選ぶ |
+
+両者は独立。併用例: `python scripts/claude_loop.py --auto --workflow auto`（無人モードでワークフロー自動選択）。
 
 ## issue_worklist.py
 
@@ -96,7 +113,7 @@ python scripts/issue_worklist.py --category app
 
 | オプション | 短縮 | 型 | デフォルト | 概要 |
 |---|---|---|---|---|
-| `--workflow` | `-w` | Path | `scripts/claude_loop.yaml` | ワークフロー YAML ファイルパス |
+| `--workflow` | `-w` | str | `auto` | `auto` / `full` / `quick` / YAML パスのいずれか |
 | `--start` | `-s` | int (>=1) | `1` | 開始ステップ番号（1-based） |
 | `--cwd` | - | Path | プロジェクトルート | Claude コマンドの作業ディレクトリ |
 | `--dry-run` | - | flag | `False` | コマンド確認のみ（実行・ログ・通知なし） |
@@ -162,6 +179,18 @@ steps:
 
 - フル: [`claude_loop.yaml`](claude_loop.yaml) — 6 ステップ（`issue_plan` → `split_plan` → `imple_plan` → `wrap_up` → `write_current` → `retrospective`）
 - 軽量: [`claude_loop_quick.yaml`](claude_loop_quick.yaml) — 3 ステップ（`issue_plan` → `quick_impl` → `quick_doc`）
+- issue_plan 単独: [`claude_loop_issue_plan.yaml`](claude_loop_issue_plan.yaml) — 1 ステップ（`issue_plan` のみ）。`--workflow auto` の第 1 段でも使用される
+
+### `--workflow auto` の分岐仕様
+
+1. `scripts/claude_loop_issue_plan.yaml` で `/issue_plan` を実行
+2. `docs/{category}/ver*/ROUGH_PLAN.md` の最新 mtime ファイルを開き frontmatter の `workflow:` を読む
+3. `quick` → `claude_loop_quick.yaml` の `steps[1:]`、`full` → `claude_loop.yaml` の `steps[1:]` を実行
+4. `workflow:` 未記載・不正値 → `full` にフォールバック（警告を log/stderr に出力）
+5. `--workflow auto` と `--start N>1` は併用不可（エラー終了）
+6. `--workflow auto --dry-run` 併用時はフェーズ 1 のコマンドのみ表示し、フェーズ 2 はスキップ
+
+`command` / `mode` / `defaults` セクションは `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の 3 ファイルで同一内容を維持する必要がある（いずれかを変更した場合は必ず 3 ファイル全てを同期すること）。
 
 ## フル/quick の使い分け
 

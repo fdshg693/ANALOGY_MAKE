@@ -1,6 +1,6 @@
-# NOTE: --workflow auto uses steps[1:] of this file. steps[0] must be /issue_plan.
-#       The `command` / `mode` / `defaults` sections must stay in sync with
-#       claude_loop.yaml and claude_loop_issue_plan.yaml.
+# NOTE: 1-step YAML for running /issue_plan alone. Also used as phase 1 of --workflow auto.
+#       The `command` / `mode` / `defaults` sections must stay in sync with claude_loop.yaml
+#       and claude_loop_quick.yaml.
 
 mode:
   auto: true
@@ -38,13 +38,3 @@ steps:
     prompt: /issue_plan
     model: opus
     effort: high
-
-  - name: quick_impl
-    prompt: /quick_impl
-    effort: high
-    continue: true
-
-  - name: quick_doc
-    prompt: /quick_doc
-    effort: low
-    continue: true

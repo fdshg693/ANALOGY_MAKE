@@ -17,7 +17,10 @@ from typing import Any
 from claude_loop_lib.workflow import (
     load_workflow, get_steps, resolve_defaults,
     resolve_command_config, resolve_mode,
+    resolve_workflow_value,
+    FULL_YAML_FILENAME, QUICK_YAML_FILENAME, ISSUE_PLAN_YAML_FILENAME,
 )
+from claude_loop_lib.frontmatter import parse_frontmatter
 from claude_loop_lib.feedbacks import load_feedbacks, consume_feedbacks
 from claude_loop_lib.commands import (
     build_command, iter_steps_for_loop_limit, iter_steps_for_step_limit,
@@ -31,7 +34,7 @@ from claude_loop_lib.git_utils import (
 from claude_loop_lib.notify import notify_completion
 
 
-DEFAULT_WORKFLOW_PATH = Path(__file__).with_name("claude_loop.yaml")
+YAML_DIR = Path(__file__).resolve().parent
 DEFAULT_WORKING_DIRECTORY = Path(__file__).resolve().parent.parent
 
 
@@ -49,9 +52,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-w",
         "--workflow",
-        type=Path,
-        default=DEFAULT_WORKFLOW_PATH,
-        help=f"Path to workflow YAML (default: {DEFAULT_WORKFLOW_PATH})",
+        type=str,
+        default="auto",
+        help="Workflow selector: 'auto' (default) | 'full' | 'quick' | path to a YAML file",
     )
     parser.add_argument(
         "-s",
@@ -115,14 +118,98 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def main() -> int:
-    args = parse_args()
-    config = load_workflow(args.workflow)
-    steps = get_steps(config)
-
-    if args.start < 1 or args.start > len(steps):
+def validate_auto_args(resolved: str | Path, args: argparse.Namespace) -> None:
+    """Raise SystemExit if --workflow auto is used with unsupported options."""
+    if resolved == "auto" and args.start > 1:
         raise SystemExit(
-            f"--start must be between 1 and {len(steps)}. Received: {args.start}"
+            "--workflow auto requires --start 1 (cannot skip /issue_plan phase)."
+        )
+
+
+def _find_latest_rough_plan(cwd: Path) -> Path:
+    """Locate the most recently modified ROUGH_PLAN.md under docs/{CURRENT_CATEGORY}/ver*/."""
+    cat_file = cwd / ".claude" / "CURRENT_CATEGORY"
+    category = cat_file.read_text(encoding="utf-8").strip() if cat_file.is_file() else "app"
+    docs_dir = cwd / "docs" / category
+    candidates = list(docs_dir.glob("ver*/ROUGH_PLAN.md"))
+    if not candidates:
+        raise SystemExit(
+            f"auto workflow: no ROUGH_PLAN.md found under {docs_dir}. "
+            f"Did /issue_plan fail silently? "
+            f"(When .claude/CURRENT_CATEGORY is unset, 'app' is used.)"
+        )
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
+def _read_workflow_kind(rough_plan: Path) -> str:
+    """Read the `workflow:` frontmatter value from a ROUGH_PLAN.md.
+
+    Returns "full" or "quick". Falls back to "full" with a warning on any
+    error (missing frontmatter / missing key / invalid value).
+    """
+    text = rough_plan.read_text(encoding="utf-8")
+    fm, _body = parse_frontmatter(text)
+    if fm is None:
+        print(
+            f"WARNING: no frontmatter in {rough_plan}; falling back to 'full'.",
+            file=sys.stderr,
+        )
+        return "full"
+    value = fm.get("workflow")
+    if value not in ("quick", "full"):
+        print(
+            f"WARNING: invalid workflow={value!r} in {rough_plan}; falling back to 'full'.",
+            file=sys.stderr,
+        )
+        return "full"
+    return value
+
+
+def _compute_remaining_budget(args: argparse.Namespace, completed: int) -> int | None:
+    """Return remaining --max-step-runs budget after `completed` steps, or None if unset."""
+    if args.max_step_runs is None:
+        return None
+    return max(args.max_step_runs - completed, 0)
+
+
+def _resolve_uncommitted_status(args: argparse.Namespace, cwd: Path) -> str | None:
+    if args.dry_run:
+        return None
+    if not check_uncommitted_changes(cwd):
+        return None
+    if args.auto_commit_before:
+        commit_hash = auto_commit_changes(cwd)
+        if commit_hash:
+            print(f"Auto-committed uncommitted changes: {commit_hash}")
+            return f"auto-committed ({commit_hash})"
+        print("WARNING: Auto-commit failed. Proceeding with uncommitted changes.", file=sys.stderr)
+        return "auto-commit failed, proceeding with uncommitted changes"
+    print(
+        "WARNING: Uncommitted changes detected. Consider committing before running the workflow.",
+        file=sys.stderr,
+    )
+    return "uncommitted changes detected (no --auto-commit-before)"
+
+
+def _execute_yaml(
+    yaml_path: Path,
+    args: argparse.Namespace,
+    cwd: Path,
+    tee: TeeWriter | None,
+    log_path: Path | None,
+    uncommitted_status: str | None,
+    start_index: int,
+    continue_disabled: bool,
+    max_step_runs_override: int | None = None,
+    max_loops_override: int | None = None,
+) -> int:
+    """Load a single YAML and execute its steps with the given slicing."""
+    config = load_workflow(yaml_path)
+    steps = get_steps(config)
+    if start_index < 0 or start_index >= len(steps):
+        raise SystemExit(
+            f"start_index {start_index} out of range for {yaml_path.name} "
+            f"(steps: {len(steps)})."
         )
 
     executable, prompt_flag, common_args, auto_args = resolve_command_config(config)
@@ -133,52 +220,121 @@ def main() -> int:
     if shutil.which(executable) is None:
         raise SystemExit(f"Command not found: {executable}")
 
+    if max_step_runs_override is not None:
+        if max_step_runs_override <= 0:
+            return 0
+        step_iter = iter_steps_for_step_limit(steps, start_index, max_step_runs_override)
+    elif args.max_step_runs is not None:
+        step_iter = iter_steps_for_step_limit(steps, start_index, args.max_step_runs)
+    else:
+        loops = max_loops_override if max_loops_override is not None else args.max_loops
+        step_iter = iter_steps_for_loop_limit(steps, start_index, loops)
+
+    return _run_steps(
+        step_iter, steps, executable, prompt_flag, common_args,
+        cwd, args.dry_run, tee, log_path, auto_mode,
+        uncommitted_status, defaults,
+        continue_disabled=continue_disabled,
+    )
+
+
+def _run_auto(
+    args: argparse.Namespace,
+    cwd: Path,
+    yaml_dir: Path,
+    tee: TeeWriter | None,
+    log_path: Path | None,
+    uncommitted_status: str | None,
+) -> int:
+    """Run --workflow auto: phase 1 = /issue_plan, phase 2 = full|quick steps[1:]."""
+    phase1_yaml = yaml_dir / ISSUE_PLAN_YAML_FILENAME
+
+    exit_code = _execute_yaml(
+        phase1_yaml, args, cwd, tee, log_path, uncommitted_status,
+        start_index=0, continue_disabled=False,
+        max_step_runs_override=1,
+    )
+    if exit_code != 0:
+        return exit_code
+
+    def _out(line: str) -> None:
+        if tee is not None:
+            tee.write_line(line)
+        else:
+            print(line)
+
+    if args.dry_run:
+        _out("")
+        _out("--- auto: phase2 skipped (--dry-run) ---")
+        return 0
+
+    rough_plan = _find_latest_rough_plan(cwd)
+    phase2_kind = _read_workflow_kind(rough_plan)
+    phase2_yaml = yaml_dir / (
+        QUICK_YAML_FILENAME if phase2_kind == "quick" else FULL_YAML_FILENAME
+    )
+
+    _out("")
+    _out(f"--- auto: phase2 = {phase2_kind} ({phase2_yaml.name}) ---")
+
+    config2 = load_workflow(phase2_yaml)
+    steps2 = get_steps(config2)
+    if len(steps2) < 2:
+        _out(f"WARNING: phase2 YAML has {len(steps2)} step(s); nothing to run.")
+        return 0
+    first_name = steps2[0].get("name")
+    if first_name != "issue_plan":
+        _out(
+            f"WARNING: phase2 YAML step[0] is {first_name!r}, "
+            f"expected 'issue_plan'. Skipping anyway."
+        )
+
+    remaining_budget = _compute_remaining_budget(args, completed=1)
+
+    return _execute_yaml(
+        phase2_yaml, args, cwd, tee, log_path,
+        uncommitted_status=None,
+        start_index=1, continue_disabled=False,
+        max_step_runs_override=remaining_budget,
+    )
+
+
+def main() -> int:
+    args = parse_args()
+    resolved = resolve_workflow_value(args.workflow, YAML_DIR)
+    validate_auto_args(resolved, args)
+
     cwd = args.cwd.expanduser().resolve()
     if not cwd.is_dir():
         raise SystemExit(f"Working directory not found: {cwd}")
 
-    uncommitted_status: str | None = None
-    if not args.dry_run:
-        if check_uncommitted_changes(cwd):
-            if args.auto_commit_before:
-                commit_hash = auto_commit_changes(cwd)
-                if commit_hash:
-                    uncommitted_status = f"auto-committed ({commit_hash})"
-                    print(f"Auto-committed uncommitted changes: {commit_hash}")
-                else:
-                    uncommitted_status = "auto-commit failed, proceeding with uncommitted changes"
-                    print("WARNING: Auto-commit failed. Proceeding with uncommitted changes.", file=sys.stderr)
-            else:
-                uncommitted_status = "uncommitted changes detected (no --auto-commit-before)"
-                print("WARNING: Uncommitted changes detected. Consider committing before running the workflow.", file=sys.stderr)
-
-    if args.max_step_runs is not None:
-        step_iter = iter_steps_for_step_limit(steps, args.start - 1, args.max_step_runs)
-    else:
-        step_iter = iter_steps_for_loop_limit(steps, args.start - 1, args.max_loops)
+    uncommitted_status = _resolve_uncommitted_status(args, cwd)
 
     enable_log = not args.no_log and not args.dry_run
-    continue_disabled = args.start > 1
+    log_yaml_for_naming = (
+        YAML_DIR / ISSUE_PLAN_YAML_FILENAME if resolved == "auto" else resolved
+    )
 
     workflow_start = time.monotonic()
 
+    def _run_selected(tee: TeeWriter | None, log_path: Path | None) -> int:
+        if resolved == "auto":
+            return _run_auto(args, cwd, YAML_DIR, tee, log_path, uncommitted_status)
+        if args.start < 1:
+            raise SystemExit(f"--start must be >= 1. Received: {args.start}")
+        return _execute_yaml(
+            resolved, args, cwd, tee, log_path, uncommitted_status,
+            start_index=args.start - 1,
+            continue_disabled=args.start > 1,
+        )
+
     if enable_log:
-        log_path = create_log_path(args.log_dir, args.workflow)
+        log_path = create_log_path(args.log_dir, log_yaml_for_naming)
         with open(log_path, "w", encoding="utf-8") as log_file:
             tee = TeeWriter(log_file)
-            exit_code = _run_steps(
-                step_iter, steps, executable, prompt_flag, common_args,
-                cwd, args.dry_run, tee, log_path, auto_mode,
-                uncommitted_status, defaults,
-                continue_disabled=continue_disabled,
-            )
+            exit_code = _run_selected(tee, log_path)
     else:
-        exit_code = _run_steps(
-            step_iter, steps, executable, prompt_flag, common_args,
-            cwd, args.dry_run, None, None, auto_mode,
-            uncommitted_status, defaults,
-            continue_disabled=continue_disabled,
-        )
+        exit_code = _run_selected(None, None)
 
     total_duration = time.monotonic() - workflow_start
 

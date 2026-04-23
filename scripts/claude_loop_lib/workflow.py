@@ -9,6 +9,32 @@ from typing import Any
 import yaml
 
 
+FULL_YAML_FILENAME = "claude_loop.yaml"
+QUICK_YAML_FILENAME = "claude_loop_quick.yaml"
+ISSUE_PLAN_YAML_FILENAME = "claude_loop_issue_plan.yaml"
+
+RESERVED_WORKFLOW_VALUES = ("auto", "full", "quick")
+
+
+def resolve_workflow_value(value: str, yaml_dir: Path) -> str | Path:
+    """Resolve the --workflow CLI value.
+
+    - "auto" -> returns "auto" (sentinel; caller handles two-phase execution)
+    - "full" -> Path(yaml_dir / FULL_YAML_FILENAME)
+    - "quick" -> Path(yaml_dir / QUICK_YAML_FILENAME)
+    - other (path-like) -> Path(value).expanduser()
+
+    Reserved-value matching is exact and case-sensitive.
+    """
+    if value == "auto":
+        return "auto"
+    if value == "full":
+        return yaml_dir / FULL_YAML_FILENAME
+    if value == "quick":
+        return yaml_dir / QUICK_YAML_FILENAME
+    return Path(value).expanduser()
+
+
 def load_workflow(path: Path) -> dict[str, Any]:
     workflow_path = path.expanduser().resolve()
     if not workflow_path.is_file():

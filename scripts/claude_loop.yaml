@@ -1,3 +1,7 @@
+# NOTE: --workflow auto uses steps[1:] of this file. steps[0] must be /issue_plan.
+#       The `command` / `mode` / `defaults` sections must stay in sync with
+#       claude_loop_quick.yaml and claude_loop_issue_plan.yaml.
+
 mode:
   auto: true
 

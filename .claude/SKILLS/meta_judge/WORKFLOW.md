@@ -42,5 +42,6 @@
 
 ### 保守上の注意
 
-- `claude_loop.yaml` と `claude_loop_quick.yaml` の `command` セクションは同一内容。片方を変更した際はもう片方も必ず同期すること
-- 両ワークフローの 1 ステップ目は `/issue_plan` で共通。ROUGH_PLAN.md 冒頭の `workflow: full | quick` / `source: issues | master_plan` で後続分岐の材料が残る（`--workflow auto` 分岐ロジックは ver8.1 以降で導入予定）
+- `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の `command` / `mode` / `defaults` セクションは同一内容で維持する（いずれかを変更した場合は必ず 3 ファイル全てを同期すること）
+- 両ワークフローの 1 ステップ目は `/issue_plan` で共通。ROUGH_PLAN.md 冒頭の `workflow: full | quick` / `source: issues | master_plan` で後続分岐の材料が残る（`--workflow auto` 分岐ロジックは ver9.0 で実装済み）
+- `--workflow auto`（新デフォルト）は `claude_loop_issue_plan.yaml` で `/issue_plan` を先行実行し、出力された最新 `ROUGH_PLAN.md` の frontmatter `workflow:` に応じて `claude_loop.yaml` / `claude_loop_quick.yaml` の `steps[1:]` を実行する。`workflow:` 未記載・不正値時は `full` にフォールバックして警告を出す

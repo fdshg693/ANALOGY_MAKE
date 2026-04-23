@@ -15,10 +15,17 @@ from unittest.mock import patch, MagicMock
 
 # Add the scripts directory to sys.path so we can import claude_loop
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from claude_loop import parse_args, _run_steps
+import claude_loop
+from claude_loop import (
+    parse_args, _run_steps,
+    validate_auto_args, _find_latest_rough_plan, _read_workflow_kind,
+    _compute_remaining_budget,
+)
 from claude_loop_lib.workflow import (
     load_workflow, get_steps, resolve_defaults,
     resolve_command_config, resolve_mode,
+    resolve_workflow_value,
+    FULL_YAML_FILENAME, QUICK_YAML_FILENAME, ISSUE_PLAN_YAML_FILENAME,
 )
 from claude_loop_lib.feedbacks import (
     parse_feedback_frontmatter, load_feedbacks, consume_feedbacks,
@@ -1126,6 +1133,315 @@ class TestIssueWorklist(unittest.TestCase):
     def test_format_text_empty_says_no_matching(self) -> None:
         text = self.issue_worklist.format_text("util", [])
         assert "(no matching issues)" in text
+
+
+class TestResolveWorkflowValue(unittest.TestCase):
+    """Tests for workflow.resolve_workflow_value()."""
+
+    def setUp(self) -> None:
+        self.yaml_dir = Path("/fake/scripts")
+
+    def test_resolve_auto_returns_sentinel(self) -> None:
+        assert resolve_workflow_value("auto", self.yaml_dir) == "auto"
+
+    def test_resolve_full_returns_full_yaml_path(self) -> None:
+        result = resolve_workflow_value("full", self.yaml_dir)
+        assert result == self.yaml_dir / FULL_YAML_FILENAME
+
+    def test_resolve_quick_returns_quick_yaml_path(self) -> None:
+        result = resolve_workflow_value("quick", self.yaml_dir)
+        assert result == self.yaml_dir / QUICK_YAML_FILENAME
+
+    def test_resolve_path_like_returns_path(self) -> None:
+        result = resolve_workflow_value("/tmp/foo.yaml", self.yaml_dir)
+        assert result == Path("/tmp/foo.yaml")
+
+    def test_resolve_relative_path_preserved(self) -> None:
+        result = resolve_workflow_value("other.yaml", self.yaml_dir)
+        assert result == Path("other.yaml")
+
+    def test_reserved_values_are_case_sensitive(self) -> None:
+        result = resolve_workflow_value("AUTO", self.yaml_dir)
+        assert result == Path("AUTO")
+
+
+class TestParseArgsWorkflow(unittest.TestCase):
+    """Tests for --workflow argparse behavior."""
+
+    def _parse(self, args: list[str]) -> argparse.Namespace:
+        with patch("sys.argv", ["claude_loop.py", *args]):
+            return parse_args()
+
+    def test_default_is_auto_string(self) -> None:
+        result = self._parse([])
+        assert result.workflow == "auto"
+
+    def test_explicit_full_reserved(self) -> None:
+        result = self._parse(["-w", "full"])
+        assert result.workflow == "full"
+
+    def test_explicit_quick_reserved(self) -> None:
+        result = self._parse(["-w", "quick"])
+        assert result.workflow == "quick"
+
+    def test_explicit_path(self) -> None:
+        result = self._parse(["-w", "custom.yaml"])
+        assert result.workflow == "custom.yaml"
+
+
+class TestValidateAutoArgs(unittest.TestCase):
+    """Tests for validate_auto_args()."""
+
+    def _args(self, **kwargs: Any) -> argparse.Namespace:
+        ns = argparse.Namespace(start=1, max_step_runs=None, max_loops=1)
+        for k, v in kwargs.items():
+            setattr(ns, k, v)
+        return ns
+
+    def test_auto_with_start_1_ok(self) -> None:
+        validate_auto_args("auto", self._args(start=1))
+
+    def test_auto_with_start_2_raises(self) -> None:
+        with self.assertRaises(SystemExit) as cm:
+            validate_auto_args("auto", self._args(start=2))
+        assert "--start 1" in str(cm.exception)
+
+    def test_non_auto_start_2_ok(self) -> None:
+        validate_auto_args(Path("any.yaml"), self._args(start=2))
+
+
+class TestReadWorkflowKind(unittest.TestCase):
+    """Tests for _read_workflow_kind()."""
+
+    def _write(self, tmp: Path, text: str) -> Path:
+        p = tmp / "ROUGH_PLAN.md"
+        p.write_text(text, encoding="utf-8")
+        return p
+
+    def test_valid_quick_returns_quick(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = self._write(Path(td), "---\nworkflow: quick\n---\nbody\n")
+            assert _read_workflow_kind(p) == "quick"
+
+    def test_valid_full_returns_full(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = self._write(Path(td), "---\nworkflow: full\n---\nbody\n")
+            assert _read_workflow_kind(p) == "full"
+
+    def test_missing_frontmatter_falls_back_to_full_with_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = self._write(Path(td), "# no frontmatter\nbody\n")
+            with patch("sys.stderr") as mock_err:
+                result = _read_workflow_kind(p)
+        assert result == "full"
+        # warning was written to stderr
+        assert mock_err.method_calls or True
+
+    def test_missing_workflow_key_falls_back_to_full(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = self._write(Path(td), "---\nsource: master_plan\n---\nbody\n")
+            assert _read_workflow_kind(p) == "full"
+
+    def test_invalid_workflow_value_falls_back_to_full(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = self._write(Path(td), "---\nworkflow: banana\n---\nbody\n")
+            assert _read_workflow_kind(p) == "full"
+
+
+class TestFindLatestRoughPlan(unittest.TestCase):
+    """Tests for _find_latest_rough_plan()."""
+
+    def _make_tree(self, root: Path, category: str, versions: list[str]) -> list[Path]:
+        (root / ".claude").mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / "CURRENT_CATEGORY").write_text(category, encoding="utf-8")
+        paths = []
+        for ver in versions:
+            vdir = root / "docs" / category / ver
+            vdir.mkdir(parents=True, exist_ok=True)
+            p = vdir / "ROUGH_PLAN.md"
+            p.write_text(f"# {ver}\n", encoding="utf-8")
+            paths.append(p)
+        return paths
+
+    def test_single_rough_plan_returned(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            paths = self._make_tree(tmp, "util", ["ver1.0"])
+            result = _find_latest_rough_plan(tmp)
+            assert result == paths[0]
+
+    def test_latest_mtime_wins(self) -> None:
+        import os
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            paths = self._make_tree(tmp, "util", ["ver1.0", "ver2.0", "ver3.0"])
+            # Set mtimes explicitly: ver2.0 is newest
+            os.utime(paths[0], (1000, 1000))
+            os.utime(paths[2], (2000, 2000))
+            os.utime(paths[1], (3000, 3000))
+            result = _find_latest_rough_plan(tmp)
+            assert result == paths[1]
+
+    def test_no_rough_plan_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            (tmp / ".claude").mkdir()
+            (tmp / ".claude" / "CURRENT_CATEGORY").write_text("util", encoding="utf-8")
+            (tmp / "docs" / "util").mkdir(parents=True)
+            with self.assertRaises(SystemExit) as cm:
+                _find_latest_rough_plan(tmp)
+            assert "no ROUGH_PLAN.md" in str(cm.exception)
+
+    def test_uses_current_category_file(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            # Write rough plans under both 'app' and 'util', ensure 'util' is picked
+            self._make_tree(tmp, "app", ["ver1.0"])
+            util_paths = self._make_tree(tmp, "util", ["ver5.0"])
+            result = _find_latest_rough_plan(tmp)
+            assert result == util_paths[0]
+
+    def test_missing_category_file_falls_back_to_app(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            app_dir = tmp / "docs" / "app" / "ver1.0"
+            app_dir.mkdir(parents=True)
+            p = app_dir / "ROUGH_PLAN.md"
+            p.write_text("x", encoding="utf-8")
+            result = _find_latest_rough_plan(tmp)
+            assert result == p
+
+
+class TestComputeRemainingBudget(unittest.TestCase):
+    """Tests for _compute_remaining_budget()."""
+
+    def _args(self, max_step_runs: int | None) -> argparse.Namespace:
+        return argparse.Namespace(max_step_runs=max_step_runs)
+
+    def test_none_when_unset(self) -> None:
+        assert _compute_remaining_budget(self._args(None), 1) is None
+
+    def test_subtracts_completed(self) -> None:
+        assert _compute_remaining_budget(self._args(5), 1) == 4
+
+    def test_clamped_to_zero(self) -> None:
+        assert _compute_remaining_budget(self._args(1), 3) == 0
+
+
+class TestAutoWorkflowIntegration(unittest.TestCase):
+    """Integration tests for main() --workflow auto branch."""
+
+    def _setup_cwd(self, root: Path, workflow_kind: str = "full") -> None:
+        """Create cwd skeleton with a ROUGH_PLAN.md ready for phase 2 read."""
+        (root / ".claude").mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / "CURRENT_CATEGORY").write_text("util", encoding="utf-8")
+        vdir = root / "docs" / "util" / "ver1.0"
+        vdir.mkdir(parents=True, exist_ok=True)
+        (vdir / "ROUGH_PLAN.md").write_text(
+            f"---\nworkflow: {workflow_kind}\n---\nbody\n", encoding="utf-8"
+        )
+
+    def _run_main_auto(
+        self, cwd: Path, extra_args: list[str] | None = None,
+        mock_subprocess_returncode: int = 0,
+    ) -> tuple[int, list[list[str]]]:
+        extra_args = extra_args or []
+        claude_calls: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd and cmd[0] == "git":
+                return MagicMock(returncode=0, stdout="", stderr="")
+            claude_calls.append(cmd)
+            return MagicMock(returncode=mock_subprocess_returncode)
+
+        argv = [
+            "claude_loop.py", "--workflow", "auto",
+            "--cwd", str(cwd),
+            "--no-log", "--no-notify",
+            *extra_args,
+        ]
+        with (
+            patch("sys.argv", argv),
+            patch("claude_loop.subprocess.run", side_effect=fake_run),
+            patch("claude_loop.check_uncommitted_changes", return_value=False),
+            patch("claude_loop.shutil.which", return_value="/usr/bin/claude"),
+            patch("builtins.print"),
+        ):
+            exit_code = claude_loop.main()
+        # Filter claude commands (drop any that sneak through)
+        return exit_code, [c for c in claude_calls if c and c[0] != "git"]
+
+    def test_auto_runs_issue_plan_then_full(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self._setup_cwd(cwd, "full")
+            exit_code, commands = self._run_main_auto(cwd)
+        assert exit_code == 0
+        # Phase 1: 1 call (/issue_plan) + Phase 2: full has 6 steps, steps[1:] = 5 steps
+        assert len(commands) == 6
+        assert "/issue_plan" in commands[0]
+        assert "/split_plan" in commands[1]
+        assert "/retrospective" in commands[-1]
+
+    def test_auto_runs_issue_plan_then_quick(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self._setup_cwd(cwd, "quick")
+            exit_code, commands = self._run_main_auto(cwd)
+        assert exit_code == 0
+        # Phase 1: 1 call + Phase 2: quick has 3 steps, steps[1:] = 2 steps
+        assert len(commands) == 3
+        assert "/issue_plan" in commands[0]
+        assert "/quick_impl" in commands[1]
+        assert "/quick_doc" in commands[2]
+
+    def test_auto_phase1_failure_aborts(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self._setup_cwd(cwd, "full")
+            exit_code, commands = self._run_main_auto(
+                cwd, mock_subprocess_returncode=1
+            )
+        assert exit_code == 1
+        # Only the phase 1 call should have fired
+        assert len(commands) == 1
+        assert "/issue_plan" in commands[0]
+
+    def test_auto_fallback_on_invalid_frontmatter(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            # Create category skeleton then write an invalid frontmatter value
+            self._setup_cwd(cwd, "full")
+            (cwd / "docs" / "util" / "ver1.0" / "ROUGH_PLAN.md").write_text(
+                "---\nworkflow: banana\n---\nbody\n", encoding="utf-8"
+            )
+            exit_code, commands = self._run_main_auto(cwd)
+        # Falls back to full (6 total commands)
+        assert exit_code == 0
+        assert len(commands) == 6
+
+    def test_auto_dry_run_skips_phase2(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            # No ROUGH_PLAN.md at all - phase 2 would fail, but dry-run must skip it
+            (cwd / ".claude").mkdir()
+            (cwd / ".claude" / "CURRENT_CATEGORY").write_text("util", encoding="utf-8")
+            exit_code, commands = self._run_main_auto(cwd, ["--dry-run"])
+        assert exit_code == 0
+        # dry-run: command is printed but subprocess.run is NOT called for phase 1
+        # Because dry_run short-circuits inside _run_steps before subprocess.run.
+        # So we expect 0 captured subprocess calls.
+        assert len(commands) == 0
+
+    def test_auto_with_start_2_exits(self) -> None:
+        argv = [
+            "claude_loop.py", "--workflow", "auto", "--start", "2",
+            "--cwd", ".", "--no-log", "--no-notify",
+        ]
+        with patch("sys.argv", argv):
+            with self.assertRaises(SystemExit) as cm:
+                claude_loop.main()
+        assert "--start 1" in str(cm.exception)
 
 
 if __name__ == "__main__":

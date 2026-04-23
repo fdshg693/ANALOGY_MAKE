@@ -1,5 +1,20 @@
 # PHASE6.0: ISSUE 起点プランニングの分割とワークフロー自動選択
 
+## 実装進捗
+
+| 節 | 内容 | 状態 | バージョン |
+|---|---|---|---|
+| §1 | `issue_worklist.py` 追加 + `claude_loop_lib/issues.py` 共通化 | ✅ 完了 | ver7.0 |
+| §2 | `/issue_plan` SKILL 新設、`/split_plan` 責務縮小 | ⏳ 未着手 | ver7.1 想定 |
+| §3 | `--workflow auto` 導入 | ⏳ 未着手 | ver7.2 想定 |
+| §4 | `/retrospective` での `issue_worklist.py` 利用手順追記 | ✅ 完了 | ver7.0 |
+| §5 | ドキュメント・テスト整備（部分完了） | 🔄 一部完了 | ver7.0〜 |
+
+§5 詳細（ver7.0 時点）:
+- `scripts/README.md` への `issue_worklist.py` 説明追記 → ✅
+- `.claude/SKILLS/retrospective/SKILL.md` への手順追記 → ✅
+- その他（`/issue_plan` SKILL、`/split_plan` 責務縮小、`meta_judge/WORKFLOW.md` 等）→ §2/§3 と一体で後続バージョン
+
 ## 概要
 
 `/split_plan` の前半責務（関連 ISSUE の取得、対象選定、`ROUGH_PLAN.md` 作成）を新規 `/issue_plan` に切り出し、既存 `/split_plan` は review 付きの詳細実装計画作成に専念させる。`scripts/issue_worklist.py` を追加し、`status: ready | review` かつ `assigned` が指定主体に一致する ISSUE だけを抽出できるようにする。`scripts/claude_loop.py` の `--workflow` には `auto` を追加し、これをデフォルトにして、`/issue_plan` が `quick` / `full` のどちらに進むかを確定する。

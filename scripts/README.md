@@ -2,7 +2,7 @@
 
 ## これは何か
 
-`claude_loop.py` は YAML ワークフロー定義に従って Claude CLI を順次呼び出す Python スクリプト。プロジェクトのメジャー/マイナーバージョン管理フロー（`/split_plan` → `/imple_plan` → ...）を自動で回すための実行基盤であり、ログ出力・自動コミット・未コミット検出・デスクトップ通知・フィードバック注入などの周辺機能を備える。
+`claude_loop.py` は YAML ワークフロー定義に従って Claude CLI を順次呼び出す Python スクリプト。プロジェクトのメジャー/マイナーバージョン管理フロー（`/issue_plan` → `/split_plan` → `/imple_plan` → ...）を自動で回すための実行基盤であり、ログ出力・自動コミット・未コミット検出・デスクトップ通知・フィードバック注入などの周辺機能を備える。
 
 ## 前提条件
 
@@ -16,7 +16,7 @@
 |---|---|
 | `claude_loop.py` | CLI エントリ。`parse_args` / `main` / `_run_steps` のみを保持 |
 | `claude_loop_lib/` | ワークフロー実行に必要な関数群をモジュール分割したパッケージ（詳細は下記） |
-| `claude_loop.yaml` | フルワークフロー（5 ステップ）定義 |
+| `claude_loop.yaml` | フルワークフロー（6 ステップ）定義 |
 | `claude_loop_quick.yaml` | 軽量ワークフロー（3 ステップ）定義 |
 | `claude_sync.py` | `.claude/` ⇔ `.claude_sync/` 同期スクリプト。CLI `-p` モードで `.claude/` を編集できない制約を回避するためのワークアラウンド |
 | `issue_status.py` | `ISSUES/{category}/{high,medium,low}/*.md` の `status` / `assigned` 分布を表示する読み取り専用スクリプト |
@@ -150,7 +150,7 @@ steps:
 ### `continue` の使い分け
 
 - **継続したいケース**: 前ステップの判断経緯（ツール使用結果やトレードオフの検討）を引き継ぎたい整理系ステップ。例: `imple_plan`（split_plan の判断を踏まえる）、`wrap_up`（実装ステップの判断を踏まえる）、`quick_impl` / `quick_doc`
-- **新規セッションが望ましいケース**: 別視点で書き起こす整理系ステップ。例: `write_current`（現況を新規視点で整理）、`retrospective`（独立したフレーミングで振り返る）、`split_plan` / `quick_plan`（ワークフロー先頭）
+- **新規セッションが望ましいケース**: 別視点で書き起こす整理系ステップ。例: `write_current`（現況を新規視点で整理）、`retrospective`（独立したフレーミングで振り返る）、`issue_plan` / `split_plan`（ワークフロー前半、必要情報は ROUGH_PLAN.md 経由で伝達）
 
 ### `continue` のエッジケース
 
@@ -160,8 +160,8 @@ steps:
 
 ### サンプル YAML
 
-- フル: [`claude_loop.yaml`](claude_loop.yaml) — 5 ステップ（`split_plan` → `imple_plan` → `wrap_up` → `write_current` → `retrospective`）
-- 軽量: [`claude_loop_quick.yaml`](claude_loop_quick.yaml) — 3 ステップ（`quick_plan` → `quick_impl` → `quick_doc`）
+- フル: [`claude_loop.yaml`](claude_loop.yaml) — 6 ステップ（`issue_plan` → `split_plan` → `imple_plan` → `wrap_up` → `write_current` → `retrospective`）
+- 軽量: [`claude_loop_quick.yaml`](claude_loop_quick.yaml) — 3 ステップ（`issue_plan` → `quick_impl` → `quick_doc`）
 
 ## フル/quick の使い分け
 

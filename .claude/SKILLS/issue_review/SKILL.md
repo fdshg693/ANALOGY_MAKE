@@ -7,9 +7,9 @@ user-invocable: true
 
 ## 位置づけ
 
-- `/split_plan` / `/quick_plan` の冒頭で呼ばれる共通手順の**一次資料**
-- 実運用上は `split_plan/SKILL.md` / `quick_plan/SKILL.md` に手順をインライン展開して組み込む（SKILL チェーン起動の不確実性を避けるため）
-- 本ファイルは仕様書として保守し、両呼び出し元と同期させること
+- `/issue_plan` の「準備」節で呼ばれる共通手順の**一次資料**
+- 実運用上は `issue_plan/SKILL.md` に手順をインライン展開して組み込む（SKILL チェーン起動の不確実性を避けるため）
+- 本ファイルは仕様書として保守し、呼び出し元と同期させること
 
 ## コンテキスト
 
@@ -92,9 +92,8 @@ plan 本文に以下の 2 ブロックを `##` 見出しとして残す:
 
 ## 呼び出し元との同期
 
-本 SKILL の仕様変更時は、以下 2 箇所もあわせて更新すること:
+本 SKILL の仕様変更時は、以下 1 箇所もあわせて更新すること:
 
-- `.claude/skills/split_plan/SKILL.md` — 「準備」セクション末尾の ISSUE レビューフェーズ手順
-- `.claude/skills/quick_plan/SKILL.md` — 「準備」セクション末尾の ISSUE レビューフェーズ手順
+- `.claude/skills/issue_plan/SKILL.md` — 「準備」セクション末尾の ISSUE レビューフェーズ手順
 
-両 SKILL には「仕様の詳細は `.claude/skills/issue_review/SKILL.md` を参照」の一文を添え、同期を促す。
+同 SKILL には「仕様の詳細は `.claude/skills/issue_review/SKILL.md` を参照」の一文を添え、同期を促す。

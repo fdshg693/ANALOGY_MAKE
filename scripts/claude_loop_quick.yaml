@@ -30,8 +30,10 @@ defaults:
   effort: medium
 
 steps:
-  - name: quick_plan
-    prompt: /quick_plan
+  - name: issue_plan
+    prompt: /issue_plan
+    model: opus
+    effort: high
 
   - name: quick_impl
     prompt: /quick_impl

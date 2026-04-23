@@ -30,6 +30,11 @@ defaults:
   effort: medium
 
 steps:
+  - name: issue_plan
+    prompt: /issue_plan
+    model: opus
+    effort: high
+
   - name: split_plan
     prompt: /split_plan
     model: opus

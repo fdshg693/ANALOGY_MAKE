@@ -5,17 +5,18 @@
 `.claude\SKILLS` 配下のSKILLを使って順番に実装している
 現在までに出来ているバージョンを見て、出来を評価して（たくさんのバージョンがある場合は、最新のバージョンを中心に見ればよい。昔のバージョンは現在と異なるフローで実装されている可能性があるため）
 
-1. `/split_plan` — マスタープラン or ISSUESから、今回取り組むべきタスクの抽出・計画
-2. `/imple_plan` — 計画に基づく実装
-3. `/wrap_up` — MEMOに基づく細かい改善・整理
-4. `/write_current` — ドキュメントの更新
-5. `/retrospective` — 振り返りと次バージョンへの改善点整理
+1. `/issue_plan` — 現状把握 + ISSUE レビュー + ISSUE/MASTER_PLAN 選定 + ROUGH_PLAN.md 作成 + workflow 判定
+2. `/split_plan` — ROUGH_PLAN.md を起点に REFACTOR.md / IMPLEMENT.md 作成 + plan_review_agent で review
+3. `/imple_plan` — 計画に基づく実装
+4. `/wrap_up` — MEMOに基づく細かい改善・整理
+5. `/write_current` — ドキュメントの更新
+6. `/retrospective` — 振り返りと次バージョンへの改善点整理
 
 ## 2. 軽量ワークフロー（quick）
 
 小規模タスク向けの 3 ステップワークフロー。`claude_loop_quick.yaml` で定義。
 
-1. `/quick_plan` — ISSUE 選定 + 簡潔な計画（ROUGH_PLAN.md のみ）
+1. `/issue_plan` — 現状把握 + ISSUE レビュー + ISSUE 選定 + ROUGH_PLAN.md 作成（workflow=quick で frontmatter を付ける）
 2. `/quick_impl` — 実装 + MEMO対応 + typecheck + コミット
 3. `/quick_doc` — CHANGES.md 作成 + CLAUDE.md 更新確認 + ISSUES 整理 + コミット
 
@@ -42,3 +43,4 @@
 ### 保守上の注意
 
 - `claude_loop.yaml` と `claude_loop_quick.yaml` の `command` セクションは同一内容。片方を変更した際はもう片方も必ず同期すること
+- 両ワークフローの 1 ステップ目は `/issue_plan` で共通。ROUGH_PLAN.md 冒頭の `workflow: full | quick` / `source: issues | master_plan` で後続分岐の材料が残る（`--workflow auto` 分岐ロジックは ver8.1 以降で導入予定）

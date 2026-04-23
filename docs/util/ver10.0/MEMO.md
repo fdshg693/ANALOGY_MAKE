@@ -1,6 +1,6 @@
 ---
 version: ver10.0
-phase: imple_plan 完了時点
+phase: wrap_up 完了
 ---
 
 # MEMO: util ver10.0 — workflow YAML step 単位 system prompt / model override
@@ -26,3 +26,14 @@ phase: imple_plan 完了時点
 ## ドキュメント更新の提案
 
 - 今回 README §「YAML ワークフロー仕様」を大幅拡張したが、override キー一覧表と継承ルールは将来 PHASE7.0 §2 (validation) や §8 (`/retrospective`) でも参照されるはず。各 SKILL ドキュメント（`/imple_plan` 等）から README へ参照リンクを追加する余地あり（次バージョン以降で検討）
+- ISSUES 化省略（変更が一行程度、MEMO 記録で十分な引き継ぎ情報として機能する）
+
+## wrap_up 対応結果
+
+| 項目 | 対応 | 詳細 |
+|---|---|---|
+| PHASE7.0.md §1 ステータス | ✅ 更新完了 | 「未着手」→「部分完了（条件①②充足、条件③は ver10.1 待ち）」 |
+| 5-2 二重引数化 | ⏭️ 対応不要 | 既存挙動を変えておらず PHASE7.0 §3 で解消予定。独立 ISSUES 化なし（plan_review_agent 承認済み） |
+| 5-4 system_prompt 置換リスク | 📋 先送り | `ISSUES/util/low/system-prompt-replacement-behavior-risk.md` に追加 |
+| TestIssueWorklist 失敗 | 📋 先送り | `ISSUES/util/medium/test-issue-worklist-limit-omitted-returns-all.md` に追加（pre-existing 明記） |
+| ドキュメント更新提案 | ⏭️ MEMO 記録のみ | ISSUES 化不要。本 MEMO の記録が引き継ぎ情報として機能 |

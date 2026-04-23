@@ -21,7 +21,7 @@ paths:
 
 - 引数パースは `argparse` を使う。新規オプションを追加する場合は `claude_loop.py` の `parse_args()` と、その値を渡す先（多くは `claude_loop_lib/commands.py` の `build_command`）の両方を更新する
 - 廃止オプションを黙って無視しない。argparse レベルで落とすか、`claude_loop_lib/validation.py` で明示的に拒否する
-- `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の `command` / `defaults` セクションは 3 ファイル間で同一内容を保つ
+- `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` / `claude_loop_scout.yaml` の `command` / `defaults` セクションは 4 ファイル間で同一内容を保つ
 
 ## 4. frontmatter / YAML 更新時の作法
 

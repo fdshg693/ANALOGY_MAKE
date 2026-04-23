@@ -13,7 +13,7 @@ util カテゴリのコード現況。ver15.0 で PHASE7.1 §1（`issue_scout` w
 | `.claude/settings.local.json` | ローカル設定。`PermissionRequest` フックで `^(?!AskUserQuestion)` マッチャーを使用し、AskUserQuestion 以外の権限要求を自動承認。`Edit(**/.claude/**)` / `Write(**/.claude/**)` を許可ツールに追加 |
 | `.claude/CURRENT_CATEGORY` | 現在アクティブなカテゴリ名（1行） |
 | `.claude/rules/claude_edit.md` | `.claude/**/*` に対して `claude_sync.py` 経由で編集する手順を rules として定義（`paths:` frontmatter で対象ファイルパターンを指定） |
-| `.claude/rules/scripts.md` | `scripts/**/*` を対象にした stable 規約（Python 前提・パス操作・CLI 引数・frontmatter/YAML 更新作法・ログ出力）。ver14.0 で新規追加。§3 の「3 ファイル同期」記述は ver15.0 で scout YAML 追加後も未更新（`scripts/README.md` / `USAGE.md` が一次資料のため）|
+| `.claude/rules/scripts.md` | `scripts/**/*` を対象にした stable 規約（Python 前提・パス操作・CLI 引数・frontmatter/YAML 更新作法・ログ出力）。ver14.0 で新規追加。§3 は ver15.0 `/retrospective` で 4 ファイル同期（`claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` / `claude_loop_scout.yaml`）に更新済 |
 | `.gitignore` | `logs/`・`.claude_sync/`・`data/`・`__pycache__/`・`*.pyc` を除外 |
 
 ## 非同期コミュニケーション

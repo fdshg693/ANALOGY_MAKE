@@ -33,3 +33,14 @@ ver8.0 で `/issue_plan` → `/split_plan` 間を新規セッション（`contin
 ## 出典
 
 `docs/util/ver8.0/IMPLEMENT.md` §9 R2（検証先送り）
+
+## ver9.0 実走での観察結果（半検証済）
+
+ver9.0 ワークフローで以下を確認した:
+
+- `/issue_plan` が作成した ROUGH_PLAN.md（190 行）には、関連ファイル一覧・判断経緯（選定理由・除外理由）・前提リスク引用・事前リファクタリング判断がすべて格納されていた
+- 後続 `/split_plan` はこの ROUGH_PLAN.md 単体から IMPLEMENT.md（564 行）を生成可能で、他ファイル参照は最小限で済んだ
+
+ただしこの観察は `claude_loop.yaml` を 1 プロセスで通した際のものであり、`continue: true` のセッション継続効果と重畳している可能性がある。**完全に独立した新規セッション**（`--max-step-runs 1` で停止 → 別プロセスで `--start 2` 再起動）での検証は未実施。ver9.1 以降で自然発生する停止・再開サイクルを利用して追検証する。
+
+詳細は `docs/util/ver9.0/RETROSPECTIVE.md` §2-2 参照。

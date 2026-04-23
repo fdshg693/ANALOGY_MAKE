@@ -12,6 +12,10 @@ user-invocable: true
 ## 1. ドキュメント構成整理
 - `docs\{カテゴリ}\MASTER_PLAN.md` への追加・ファイル分割・再構成が必要かの検討・提案
   - `ISSUES` が肥大化しだした場合、ほぼマスタープランが実装済などの場合は、新たなバージョン・構成のマスタープランの作成が有効な可能性があります
+- **現行 PHASE 完走時の対応**: `docs/{カテゴリ}/MASTER_PLAN/PHASE{N}.md` の最新 PHASE が「すべて実装済」となった場合、次 PHASE の骨子（`PHASE{N+1}.md`）作成の要否を検討する
+  - 新 PHASE の具体化作業（骨子の執筆）は `/retrospective` の責務外。次 `/issue_plan` で判断させる
+  - 既存 ISSUES で当面吸収できる場合は、PHASE 新設を焦らず本 RETROSPECTIVE §3 で「次バージョンは ISSUES 消化」と明示する
+  - 既存 ISSUES で吸収できない規模のテーマが見えている場合のみ、本 RETROSPECTIVE に PHASE 新設の方向性メモを残す
 - `CLAUDE.md` の分割検討・提案
   - 肥大化しないように、サブフォルダ固有の内容はサブフォルダ内の `CLAUDE.md` に分割するなどの方法が考えられます
 
@@ -38,6 +42,12 @@ user-invocable: true
 （軽量ワークフロー quick は `/issue_plan → /quick_impl → /quick_doc` の 3 ステップ構成。本スキルは quick には含まれない）
 
 ## 3. 次バージョンの種別推奨
+
+次バージョン判定の材料は以下 3 点。どれか一つだけで決めず、3 点を突き合わせて判断する:
+
+1. **ISSUE 状況**（`issue_worklist.py` 結果）: `ready / ai` の件数・優先度・性質
+2. **MASTER_PLAN の次項目**: 現行 PHASE に未実装の節が残っているか
+3. **現行 PHASE 完走状態**: 最新 PHASE の全節が実装済なら、次 PHASE 骨子作成 or 既存 ISSUES 消化のどちらに寄せるかを明示する
 
 次バージョンの方針を決める前に、AI が着手可能・レビュー待ちの ISSUE を把握する:
 

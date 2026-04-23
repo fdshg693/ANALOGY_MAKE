@@ -44,3 +44,5 @@ ver9.0 ワークフローで以下を確認した:
 ただしこの観察は `claude_loop.yaml` を 1 プロセスで通した際のものであり、`continue: true` のセッション継続効果と重畳している可能性がある。**完全に独立した新規セッション**（`--max-step-runs 1` で停止 → 別プロセスで `--start 2` 再起動）での検証は未実施。ver9.1 以降で自然発生する停止・再開サイクルを利用して追検証する。
 
 詳細は `docs/util/ver9.0/RETROSPECTIVE.md` §2-2 参照。
+
+**人間コメント:上記のver9.0 実走のログの`logs\workflow\20260423_135034_claude_loop.log`にて、`/issue_plan` ・ `/split_plan`の対応するsessionを確認すると異なっている。そのため、上記は検証済でCloseして問題ないと考えます。**

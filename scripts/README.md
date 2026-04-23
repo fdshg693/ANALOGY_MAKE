@@ -19,6 +19,8 @@
 | `claude_loop.yaml` | フルワークフロー（5 ステップ）定義 |
 | `claude_loop_quick.yaml` | 軽量ワークフロー（3 ステップ）定義 |
 | `claude_sync.py` | `.claude/` ⇔ `.claude_sync/` 同期スクリプト。CLI `-p` モードで `.claude/` を編集できない制約を回避するためのワークアラウンド |
+| `issue_status.py` | `ISSUES/{category}/{high,medium,low}/*.md` の `status` / `assigned` 分布を表示する読み取り専用スクリプト |
+| `issue_worklist.py` | `assigned` / `status` で ISSUE を絞り込み、`text` / `json` で出力する読み取り専用スクリプト |
 
 ### `claude_loop_lib/` のモジュール構成
 
@@ -30,6 +32,7 @@
 | `logging_utils.py` | `TeeWriter`、`create_log_path`、`print_step_header`、`format_duration` |
 | `git_utils.py` | `get_head_commit` / `check_uncommitted_changes` / `auto_commit_changes` |
 | `notify.py` | `notify_completion`（toast → beep フォールバック） |
+| `issues.py` | ISSUE frontmatter 共通ヘルパ（`VALID_STATUS` / `VALID_ASSIGNED` / `extract_status_assigned`）。`issue_status.py` と `issue_worklist.py` の共通基盤 |
 
 ## クイックスタート
 
@@ -61,6 +64,33 @@ python scripts/claude_loop.py --auto
 # 事前に未コミット変更を自動コミットしてから開始
 python scripts/claude_loop.py --auto-commit-before
 ```
+
+## issue_worklist.py
+
+`ISSUES/{category}/{high,medium,low}/*.md` を走査し、frontmatter の
+`status` / `assigned` で絞り込んだ ISSUE 一覧を出力する読み取り専用スクリプト。
+`issue_status.py` が件数サマリを返すのに対し、こちらは個別 ISSUE のリストを返す。
+
+### 使い方
+
+```bash
+# デフォルト（現在カテゴリ、assigned=ai、status=ready,review、text 出力）
+python scripts/issue_worklist.py
+
+# JSON で取得（機械可読）
+python scripts/issue_worklist.py --format json
+
+# 人間向け need_human_action を確認
+python scripts/issue_worklist.py --assigned human --status need_human_action
+
+# 別カテゴリを指定
+python scripts/issue_worklist.py --category app
+```
+
+`--category` の既定値は `.claude/CURRENT_CATEGORY` の内容（未設定時は `app`）。
+`--status` はカンマ区切りで複数指定可。受理される値は `raw` / `review` / `ready` / `need_human_action`。
+
+`/retrospective` SKILL も本スクリプトを使って次バージョン推奨の材料を収集する。
 
 ## CLI オプション一覧
 

@@ -36,6 +36,11 @@ user-invocable: true
 
 ## 3. 次バージョンの種別推奨
 
+次バージョンの方針を決める前に、AI が着手可能・レビュー待ちの ISSUE を把握する:
+
+- 現在カテゴリの着手候補: !`python scripts/issue_worklist.py`
+- 機械可読形式: !`python scripts/issue_worklist.py --format json`
+
 次に予定されるタスク（MASTER_PLAN の次項目、未解決 ISSUES）を踏まえて、次バージョンがメジャー・マイナーのどちらが適切かを推奨する。
 
 - 次のマイナーバージョン候補: !`bash .claude/scripts/get_latest_version.sh next-minor`

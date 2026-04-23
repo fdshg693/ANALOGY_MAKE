@@ -23,21 +23,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 ISSUES_DIR = REPO_ROOT / "ISSUES"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from claude_loop_lib.frontmatter import parse_frontmatter  # noqa: E402
+from claude_loop_lib.issues import extract_status_assigned  # noqa: E402
 
 CATEGORIES = ["util", "app", "infra", "cicd"]
 PRIORITIES = ["high", "medium", "low"]
-
-VALID_STATUS = {"raw", "review", "ready", "need_human_action"}
-VALID_ASSIGNED = {"human", "ai"}
-
-VALID_COMBOS = {
-    ("raw", "human"),
-    ("raw", "ai"),
-    ("review", "ai"),
-    ("ready", "ai"),
-    ("need_human_action", "human"),
-}
 
 DISPLAY_ORDER: list[tuple[str, str]] = [
     ("ready", "ai"),
@@ -52,31 +41,6 @@ def warn(msg: str) -> None:
     print(f"warning: {msg}", file=sys.stderr)
 
 
-def _extract_status_assigned(path: Path) -> tuple[str, str]:
-    """Return (status, assigned) for a single ISSUE file with fallbacks."""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        warn(f"{path}: read failed ({exc})")
-        return "raw", "human"
-
-    fm, _ = parse_frontmatter(text)
-    if fm is None:
-        return "raw", "human"
-
-    status = str(fm.get("status", "raw"))
-    assigned = str(fm.get("assigned", "human"))
-
-    if status not in VALID_STATUS:
-        warn(f"{path}: unknown status '{status}'")
-    if assigned not in VALID_ASSIGNED:
-        warn(f"{path}: unknown assigned '{assigned}'")
-    if (status, assigned) not in VALID_COMBOS:
-        warn(f"{path}: invalid combo status={status}, assigned={assigned}")
-
-    return status, assigned
-
-
 def collect_priority(category_dir: Path, priority: str) -> Counter[tuple[str, str]]:
     """Count (status, assigned) pairs in a priority subdirectory."""
     counter: Counter[tuple[str, str]] = Counter()
@@ -84,7 +48,8 @@ def collect_priority(category_dir: Path, priority: str) -> Counter[tuple[str, st
     if not priority_dir.is_dir():
         return counter
     for md_file in sorted(priority_dir.glob("*.md")):
-        counter[_extract_status_assigned(md_file)] += 1
+        status, assigned, _fm, _body = extract_status_assigned(md_file)
+        counter[(status, assigned)] += 1
     return counter
 
 

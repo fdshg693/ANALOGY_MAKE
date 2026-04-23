@@ -18,8 +18,8 @@
       "Bash(echo:*)",
       "Bash(bash:*)",
       "Bash(git:*)",
-      "Edit(/.claude/**)",
-      "Write(/.claude/**)"
+      "Edit(**/.claude/**)",
+      "Write(**/.claude/**)"
     ]
   },
   "plansDirectory": "./.claude/plans",

@@ -83,3 +83,27 @@ IMPLEMENT.md §ステップ6 の 5 項目はすべて実施:
 ## 古くて削除が推奨されるコード・ドキュメント
 
 - なし（ver6.0 は新規追加中心で既存削除はない）
+
+## wrap_up 対応結果
+
+### R1〜R5 リスク
+✅ 対応不要 — すべて MEMO 内に検証結果・判断が記録済み。追加作業なし。
+
+### 乖離1: `.claude/` 書き込み権限問題
+✅ 対応完了 — `.claude/settings.local.json` の permissions パターンを修正した:
+- `"Edit(/.claude/**)"` → `"Edit(**/.claude/**)"` 
+- `"Write(/.claude/**)"` → `"Write(**/.claude/**)"` 
+
+`**/.claude/**` のグロブパターンは可搬性があり、Windows パス (`C:/.../.claude/...`) にもマッチする見込み。
+もし次回もマッチしない場合の代替案: `"Write(C:/CodeRoot/ANALOGY_MAKE/.claude/**)"` の絶対パス形式（`ISSUES/util/low/` に起票済み）。
+
+### リファクタリング（`parse_frontmatter` 共通化）
+📋 次バージョン先送り — `ISSUES/util/low/parse-frontmatter-shared-util.md` に起票済み。差分は小さく現バージョンのスコープ外。
+
+### `CLAUDE.md` への追記
+⏭️ 対応不要（wrap_up スコープ外） — MEMO 記載の通り `write_current` スキルの担当。
+
+### ISSUES 整理
+- `ISSUES/util/medium/issue-review-rewrite-verification.md` — 持ち越し中のため変更なし
+- `ISSUES/util/low/parse-frontmatter-shared-util.md` — 今回新規起票（リファクタリング先送り）
+- `ISSUES/app/` / `ISSUES/infra/` — ver6.0 スコープ外、変更なし

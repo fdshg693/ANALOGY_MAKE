@@ -60,3 +60,13 @@
 ## 更新が必要そうなドキュメント
 
 - `docs/util/ver10.0/CURRENT_tests.md` は旧配置（`tests/test_claude_loop.py`）を前提にした記述。ver11.0 の完了に伴い、次の CURRENT 更新フェーズで `scripts/tests/` 配下の 11 ファイル体系に書き換えが必要（CURRENT 更新は別フローのため本 MEMO では提案のみ）。
+
+## wrap_up 対応結果
+
+| 項目 | 対応 | 内容 |
+|---|---|---|
+| ISSUES/util/high/pythonテスト肥大化.md | ✅ 削除 | ver11.0 で完全対応済み（受け入れ基準5項目充足）|
+| test-issue-worklist-limit-omitted-returns-all.md の参照先 | ✅ 更新 | `tests/test_claude_loop.py` → `scripts/tests/test_issue_worklist.py` に修正 |
+| 乖離項目3件（per-step commitスキップ等） | ⏭️ 対応不要 | MEMO 記録済み・実害なし |
+| pre-existing fail `test_limit_omitted_returns_all` | ⏭️ 対応不要 | ISSUES/util/medium/ で追跡中 |
+| `docs/util/ver10.0/CURRENT_tests.md` 更新 | ⏭️ 先送り | update_current フローで対応予定 |

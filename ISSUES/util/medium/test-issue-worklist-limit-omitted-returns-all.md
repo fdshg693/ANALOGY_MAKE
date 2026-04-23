@@ -8,14 +8,14 @@ origin: pre-existing
 
 ## 概要
 
-`tests/test_claude_loop.py` の `TestIssueWorklist.test_limit_omitted_returns_all` が
+`scripts/tests/test_issue_worklist.py` の `TestIssueWorklist.test_limit_omitted_returns_all` が
 ver10.0 以前から失敗している（git stash 状態でも再現確認済み）。
 テストスイートに既知の失敗が混在するとリグレッションの検出精度が低下するため修正が必要。
 
 ## 失敗内容
 
 ```
-FAIL: test_limit_omitted_returns_all (tests.test_claude_loop.TestIssueWorklist)
+FAIL: test_limit_omitted_returns_all (scripts.tests.test_issue_worklist.TestIssueWorklist)
 AssertionError: assert "total" not in payload
 ```
 
@@ -30,7 +30,7 @@ AssertionError: assert "total" not in payload
 
 ## 影響範囲
 
-- `tests/test_claude_loop.py` の `TestIssueWorklist` クラス
+- `scripts/tests/test_issue_worklist.py` の `TestIssueWorklist` クラス
 - `scripts/issue_worklist.py` の JSON 出力フォーマット（変更が必要な場合）
 
 ## 由来

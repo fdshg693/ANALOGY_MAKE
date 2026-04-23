@@ -1,5 +1,5 @@
 ---
-status: raw
+status: ready
 assigned: ai
 priority: medium
 reviewed_at: "2026-04-23"

@@ -6,14 +6,20 @@
 |---|---|---|---|
 | §1 | `issue_worklist.py` 追加 + `claude_loop_lib/issues.py` 共通化 | ✅ 完了 | ver7.0 |
 | §2 | `/issue_plan` SKILL 新設、`/split_plan` 責務縮小、`/quick_plan` 削除 | ✅ 完了 | ver8.0 |
-| §3 | `--workflow auto` 導入 | ⏳ 未着手 | ver8.1 想定 |
+| §3 | `--workflow auto` 導入 | ✅ 完了 | ver9.0 |
 | §4 | `/retrospective` での `issue_worklist.py` 利用手順追記 | ✅ 完了 | ver7.0 |
-| §5 | ドキュメント・テスト整備（部分完了） | 🔄 一部完了 | ver7.0〜 |
+| §5 | ドキュメント・テスト整備 | ✅ 完了 | ver7.0〜ver9.0 |
 
-§5 詳細（ver7.0 時点）:
-- `scripts/README.md` への `issue_worklist.py` 説明追記 → ✅
-- `.claude/SKILLS/retrospective/SKILL.md` への手順追記 → ✅
-- その他（`/issue_plan` SKILL、`/split_plan` 責務縮小、`meta_judge/WORKFLOW.md` 等）→ §2/§3 と一体で後続バージョン
+§5 詳細（ver9.0 完了時点）:
+- `scripts/README.md` への `issue_worklist.py` 説明追記 → ✅ ver7.0
+- `.claude/SKILLS/retrospective/SKILL.md` への手順追記 → ✅ ver7.0
+- `/issue_plan` SKILL 新設 → ✅ ver8.0
+- `/split_plan` 責務縮小 → ✅ ver8.0
+- `meta_judge/WORKFLOW.md` の `/issue_plan` 先頭追加・`/quick_plan` 削除反映 → ✅ ver8.0
+- `scripts/README.md` への `--workflow auto | full | quick` / `--auto` との違い説明追記 → ✅ ver9.0
+- `meta_judge/WORKFLOW.md` への 3 ファイル同期義務・`auto` 実装済み記述追記 → ✅ ver9.0
+- `tests/test_claude_loop.py` への `--workflow auto` 関連テスト追加（+32 件）→ ✅ ver9.0
+- `scripts/claude_loop_issue_plan.yaml` 新規作成 → ✅ ver9.0
 
 ## 概要
 

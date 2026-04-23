@@ -141,6 +141,8 @@ string 型のみ。`None` は未指定扱い、空文字列はエラー。
 5. `--workflow auto` と `--start N>1` は併用不可（エラー終了）
 6. `--workflow auto --dry-run` 併用時はフェーズ 1 のコマンドのみ表示し、フェーズ 2 はスキップ
 
+**起動前 validation**: step 1 実行より前に、対象となる全 YAML（`--workflow auto` では 3 本すべて）に対して validation が走る。1 件でも error があれば exit code 2 で終了し、step は実行されない（`--dry-run` 時も実行される）。詳細は [`README.md` 「起動前 validation」節](README.md) を参照。
+
 `command` / `mode` / `defaults` セクションは `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の 3 ファイルで同一内容を維持する必要がある（いずれかを変更した場合は必ず 3 ファイル全てを同期すること）。
 
 ### サンプル YAML

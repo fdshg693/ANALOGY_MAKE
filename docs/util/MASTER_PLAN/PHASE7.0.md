@@ -6,8 +6,8 @@ YAML のステップ別設定、起動前 validation、FEEDBACKS / ISSUES の運
 
 | 節 | 内容 | 状態 | 想定バージョン |
 |---|---|---|---|
-| §1 | workflow YAML による step 単位の system prompt / model 設定 override | **部分完了**（条件①②充足、条件③は ver10.1 待ち） | ver10.0 |
-| §2 | category・YAML・全 step の起動前 validation | 未着手 | ver10.0 |
+| §1 | workflow YAML による step 単位の system prompt / model 設定 override | **実装済**（ver10.0 で条件①②充足、ver12.0 の validation で条件③充足） | ver10.0〜ver12.0 |
+| §2 | category・YAML・全 step の起動前 validation | **実装済**（ver12.0） | ver12.0 |
 | §3 | legacy `--auto` と対応 YAML 設定の撤去 | 未着手 | ver10.0 |
 | §4 | FEEDBACKS の 1 ループ限定運用と `FEEDBACKS/done` 退避 | 未着手 | ver10.1 |
 | §5 | `REQUESTS/AI` / `REQUESTS/HUMAN` の ISSUES への統合 | 未着手 | ver10.1 |

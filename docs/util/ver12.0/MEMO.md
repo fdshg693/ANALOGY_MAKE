@@ -95,3 +95,15 @@ IMPLEMENT.md §6-3 で確定したとおり:
 ## 古くて削除が推奨されるコード・ドキュメントの提案
 
 なし。既存 `workflow.py` の raise-on-first-error 検証はランタイム防衛として意図的に残置（IMPLEMENT.md §2-3）。
+
+## wrap_up 対応結果
+
+plan_review_agent の承認（「修正等があっても軽微で、再度のレビュー不要」）を受けて以下を実施。
+
+| 対応項目 | 結果 |
+|---|---|
+| `docs/util/MASTER_PLAN/PHASE7.0.md` §1 状態 | ✅ 「部分完了」→「実装済（ver10.0 で条件①②、ver12.0 で条件③）」に更新 |
+| `docs/util/MASTER_PLAN/PHASE7.0.md` §2 状態 | ✅ 「未着手」→「実装済（ver12.0）」に更新 |
+| `docs/util/MASTER_PLAN.md` PHASE7.0 行 | ✅ 「§1 部分完了・§2〜§8 未着手」→「§1・§2 完了・§3〜§8 未着手」へ更新 |
+| `scripts/USAGE.md` 起動前 validation 追記 | ✅ `--workflow auto` 分岐仕様節の後に「起動前 validation」段落を追記 |
+| ISSUES 整理 | ⏭️ 対応不要: 既存 4 件（`cli-flag-compatibility-system-prompt`, `test-issue-worklist-limit-omitted-returns-all`, `system-prompt-replacement-behavior-risk`, `issue-review-rewrite-verification`）はいずれも ver12.0 スコープ外で削除・更新は不要 |

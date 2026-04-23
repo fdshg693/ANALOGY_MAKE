@@ -334,10 +334,17 @@ python scripts/claude_sync.py import
 ## テスト
 
 ```bash
-python -m unittest tests.test_claude_loop
+# 全件実行（推奨）
+python -m unittest discover -s scripts/tests -t .
+
+# 個別ファイル指定
+python -m unittest scripts.tests.test_commands
+
+# 個別クラス指定
+python -m unittest scripts.tests.test_workflow.TestOverrideInheritanceMatrix
 ```
 
-現状 192 件。`tests/test_claude_loop.py` は `claude_loop_lib.*` のパッチターゲットを使って個別モジュールをモックしている。`_run_steps` の session 引き継ぎ統合テストは `claude_loop.subprocess.run` / `claude_loop.uuid.uuid4` をパッチして検証する。
+テストは `scripts/tests/` 配下に対象モジュール別に分割されている（`test_<module>.py` の命名規則）。`claude_loop_lib.*` のパッチターゲットを使って個別モジュールをモックし、`_run_steps` の session 引き継ぎ統合テストは `claude_loop.subprocess.run` / `claude_loop.uuid.uuid4` をパッチして検証する。
 
 ## 関連ドキュメント
 

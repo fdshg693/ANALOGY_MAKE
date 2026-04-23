@@ -1134,6 +1134,71 @@ class TestIssueWorklist(unittest.TestCase):
         text = self.issue_worklist.format_text("util", [])
         assert "(no matching issues)" in text
 
+    def _write_n_issues(self, n: int) -> None:
+        for i in range(n):
+            priority = "high" if i < 2 else ("medium" if i < 4 else "low")
+            self._write_issue(
+                "util", priority, f"issue-{i:02d}.md",
+                ["status: ready", "assigned: ai"],
+                f"# Issue {i}\n\nsummary {i}",
+            )
+
+    def test_limit_returns_top_n_in_priority_order(self) -> None:
+        self._write_n_issues(6)
+        items = self.issue_worklist.collect("util", "ai", ["ready"])
+        assert len(items) == 6
+        # main() with --limit 3 should return first 3 (high×2, medium×1)
+        import io as _io
+        buf = _io.StringIO()
+        with patch("sys.stdout", buf):
+            self.issue_worklist.main(["--category", "util", "--limit", "3", "--format", "json"])
+        payload = json.loads(buf.getvalue())
+        assert len(payload["items"]) == 3
+        assert payload["items"][0]["priority"] == "high"
+        assert payload["items"][2]["priority"] == "medium"
+        assert payload["total"] == 6
+        assert payload["truncated"] is True
+        assert payload["limit"] == 3
+
+    def test_limit_omitted_returns_all(self) -> None:
+        self._write_n_issues(5)
+        import io as _io
+        buf = _io.StringIO()
+        with patch("sys.stdout", buf):
+            self.issue_worklist.main(["--category", "util", "--format", "json"])
+        payload = json.loads(buf.getvalue())
+        assert len(payload["items"]) == 5
+        assert "total" not in payload
+
+    def test_limit_exceeds_count_no_truncation(self) -> None:
+        self._write_n_issues(3)
+        import io as _io
+        buf = _io.StringIO()
+        with patch("sys.stdout", buf):
+            self.issue_worklist.main(["--category", "util", "--limit", "100", "--format", "json"])
+        payload = json.loads(buf.getvalue())
+        assert len(payload["items"]) == 3
+        assert payload["truncated"] is False
+        assert payload["total"] == 3
+
+    def test_limit_text_format_appends_truncation_note(self) -> None:
+        self._write_n_issues(5)
+        import io as _io
+        buf = _io.StringIO()
+        with patch("sys.stdout", buf):
+            self.issue_worklist.main(["--category", "util", "--limit", "2"])
+        output = buf.getvalue()
+        assert "(showing first 2 of 5 issues)" in output
+
+    def test_limit_text_format_no_note_when_not_truncated(self) -> None:
+        self._write_n_issues(2)
+        import io as _io
+        buf = _io.StringIO()
+        with patch("sys.stdout", buf):
+            self.issue_worklist.main(["--category", "util", "--limit", "10"])
+        output = buf.getvalue()
+        assert "showing first" not in output
+
 
 class TestResolveWorkflowValue(unittest.TestCase):
     """Tests for workflow.resolve_workflow_value()."""

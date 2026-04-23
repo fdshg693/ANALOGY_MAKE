@@ -115,7 +115,8 @@ def collect(category: str, assigned: str, status_list: list[str]) -> list[dict]:
     return items
 
 
-def format_text(category: str, items: list[dict]) -> str:
+def format_text(category: str, items: list[dict],
+                total: int | None = None, limit: int | None = None) -> str:
     lines = [f"[{category}]"]
     if not items:
         lines.append("  (no matching issues)")
@@ -125,16 +126,23 @@ def format_text(category: str, items: list[dict]) -> str:
             f"- {it['priority']:<6} | {it['status']:<6} | {it['assigned']:<5} "
             f"| {it['path']} | {it['title']}"
         )
+    if total is not None and limit is not None and total > limit:
+        lines.append(f"(showing first {limit} of {total} issues)")
     return "\n".join(lines)
 
 
 def format_json(category: str, assigned: str, status_list: list[str],
-                items: list[dict]) -> str:
-    payload = {
+                items: list[dict],
+                total: int | None = None, limit: int | None = None) -> str:
+    payload: dict = {
         "category": category,
         "filter": {"assigned": assigned, "status": status_list},
         "items": items,
     }
+    if total is not None:
+        payload["total"] = total
+        payload["truncated"] = total > len(items)
+        payload["limit"] = limit
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
@@ -145,6 +153,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--status", default="ready,review",
                         help="comma-separated status values")
     parser.add_argument("--format", default="text", choices=["text", "json"])
+    parser.add_argument("--limit", type=int, default=None,
+                        help="maximum number of issues to return (default: all)")
     return parser.parse_args(argv)
 
 
@@ -152,10 +162,15 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     status_list = _parse_status_list(args.status)
     items = collect(args.category, args.assigned, status_list)
+    total = len(items)
+    limit: int | None = args.limit
+    if limit is not None:
+        items = items[:limit]
     if args.format == "json":
-        print(format_json(args.category, args.assigned, status_list, items))
+        print(format_json(args.category, args.assigned, status_list, items,
+                          total=total, limit=limit))
     else:
-        print(format_text(args.category, items))
+        print(format_text(args.category, items, total=total, limit=limit))
     return 0
 
 

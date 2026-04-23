@@ -39,7 +39,6 @@ steps:
     prompt: /imple_plan
     model: opus
     effort: high
-    continue: true
 
   - name: wrap_up
     prompt: /wrap_up

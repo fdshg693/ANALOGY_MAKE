@@ -1,3 +1,5 @@
+`FEEDBACKS\ADD_RULE.md`
+
 ワークフローでClaude Codeが起動された場合に、`.claude`フォルダが直接編集できない問題は認識済。
 そのため、`.claude\rules\claude_edit.md`を作成して必ず`scripts/claude_sync.py` を介して編集するルールをより明確とした。
 

@@ -13,6 +13,7 @@ from claude_loop_lib.workflow import (
     resolve_command_config,
     resolve_workflow_value,
     FULL_YAML_FILENAME, QUICK_YAML_FILENAME, ISSUE_PLAN_YAML_FILENAME,
+    SCOUT_YAML_FILENAME,
     OVERRIDE_STRING_KEYS,
 )
 
@@ -151,6 +152,10 @@ class TestResolveWorkflowValue(unittest.TestCase):
     def test_resolve_quick_returns_quick_yaml_path(self) -> None:
         result = resolve_workflow_value("quick", self.yaml_dir)
         assert result == self.yaml_dir / QUICK_YAML_FILENAME
+
+    def test_resolve_scout_returns_scout_yaml_path(self) -> None:
+        result = resolve_workflow_value("scout", self.yaml_dir)
+        assert result == self.yaml_dir / SCOUT_YAML_FILENAME
 
     def test_resolve_path_like_returns_path(self) -> None:
         result = resolve_workflow_value("/tmp/foo.yaml", self.yaml_dir)
@@ -292,6 +297,13 @@ class TestYamlSyncOverrideKeys(unittest.TestCase):
 
     def test_issue_plan_yaml_uses_only_allowed_keys(self) -> None:
         config = load_workflow(self._yaml_path(ISSUE_PLAN_YAML_FILENAME))
+        steps = get_steps(config)
+        defaults = resolve_defaults(config)
+        assert isinstance(steps, list) and len(steps) > 0
+        assert isinstance(defaults, dict)
+
+    def test_scout_yaml_uses_only_allowed_keys(self) -> None:
+        config = load_workflow(self._yaml_path(SCOUT_YAML_FILENAME))
         steps = get_steps(config)
         defaults = resolve_defaults(config)
         assert isinstance(steps, list) and len(steps) > 0

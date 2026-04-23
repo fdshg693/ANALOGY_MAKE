@@ -95,6 +95,22 @@ ver13.0 で `--auto` フラグと YAML の `mode: / command.auto_args` 設定は
 
 テキスト編集のみで各ファイル数行程度の変更なら、4 ファイル以上でも quick を選択してよい。
 
+## scout（能動探索）
+
+`--workflow scout` は ISSUE 起票専用の opt-in workflow（ver15.0 で追加）。定期監査・節目での潜在課題洗い出しに使う。
+
+```bash
+python scripts/claude_loop.py --workflow scout --category util
+```
+
+1 run で以下のみを実施して終了する:
+
+- 対象カテゴリのコード / tests / docs / 直近 `RETROSPECTIVE.md` / `MASTER_PLAN.md` / 既存 `ISSUES/` を走査
+- 潜在課題を **最大 3 件** まで `ISSUES/{カテゴリ}/{priority}/*.md` に新規起票（原則 `raw / ai`、昇格条件を満たす小粒のみ `ready / ai`）
+- 起票件数・パス・重複でスキップした候補をサマリ出力
+
+**`--workflow auto` には自動混入しない**（明示起動のみ）。起票された ISSUE は次回 `/issue_plan` のレビューフェーズで既存の `review / ai` → `ready / ai` or `need_human_action / human` 遷移に乗る。推奨頻度は週次〜ループ節目程度（毎ループ実行しない）。
+
 ## ログの見方
 
 ログファイルは `logs/workflow/{YYYYMMDD_HHMMSS}_{workflow_stem}.log`（`.gitignore` 済、手動削除可）。

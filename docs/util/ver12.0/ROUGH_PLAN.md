@@ -55,6 +55,8 @@ PHASE7.0 §2-1〜§2-2 の完全実装を目指す。以下を一体のタスク
 
 詳細な実装方式（関数分割・ファイル配置・エラー集約のデータ構造など）は本 ROUGH_PLAN では確定せず、`/split_plan` にて IMPLEMENT.md で設計する。
 
+**事前リファクタリング不要**: 既存 `scripts/claude_loop_lib/workflow.py` の raise-on-first-error 挙動はランタイム防衛として残置し、新規 `validation.py` モジュールを独立レイヤとして追加する。共通定数（`ALLOWED_STEP_KEYS` / `ALLOWED_DEFAULTS_KEYS` / `OVERRIDE_STRING_KEYS`）は `workflow.py` から import して再利用するため、構造リファクタリングは発生しない。
+
 ## スコープに含めない事項（明示的除外）
 
 ### 併走候補だが本バージョンでは拾わない ISSUES

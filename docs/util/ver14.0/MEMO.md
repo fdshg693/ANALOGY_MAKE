@@ -59,6 +59,16 @@ PHASE7.0 §6（retrospective からの FEEDBACK handoff）+ §7（`.claude/rules
 - `.claude/rules/` に今後 `frontend.md` / `infra.md` など category 単位で rule を増やしていく前提で、`.claude/rules/README.md` に責務分担原則（stable / volatile の境界、`paths:` 設計方針）を 1 ファイル集約すると、ver15.0 以降の rule 新設時に判断負荷が下がる。ただし現状 2 ファイルでは過剰設計なので、3 ファイル目を作る時点で要検討
 - `scripts/README.md` と `scripts/USAGE.md` の境界が曖昧（拡張ガイドが両方にある）。今回は rules 側への集約を優先したため手を入れていないが、別バージョンで「README = 全体構成・spec、USAGE = 操作手順」に整理する余地あり
 
+## wrap_up 対応結果
+
+| 項目 | 方針 | 対応内容 |
+|---|---|---|
+| `.claude/rules/README.md` 新設 | ⏭️ 対応不要 | 現状 2 ファイル（`claude_edit.md` / `scripts.md`）で過剰設計。3 ファイル目を追加する時点で検討 |
+| `scripts/README.md`/`USAGE.md` 境界整理 | 📋 先送り | `ISSUES/util/low/scripts-readme-usage-boundary-clarification.md` を新規作成 |
+| ISSUES 整理 | 変更なし | 今バージョンで完了した ISSUE はない。raw/ai 3 件・ready/ai 1 件は全て持ち越し |
+
+plan_review_agent 確認済（全項目妥当、再レビュー不要）。
+
 ## 既存回帰維持確認
 
 - 233 件の既存 unittest 全通過（`Ran 233 tests in 0.462s / OK`）

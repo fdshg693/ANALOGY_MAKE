@@ -59,6 +59,51 @@ user-invocable: true
 - 次のマイナーバージョン候補: !`bash .claude/scripts/get_latest_version.sh next-minor`
 - 次のメジャーバージョン候補: !`bash .claude/scripts/get_latest_version.sh next-major`
 
+## 3.5 workflow prompt / model 評価
+
+直前バージョンで実行した workflow YAML（`scripts/claude_loop.yaml` / `scripts/claude_loop_quick.yaml` / `scripts/claude_loop_issue_plan.yaml`）の各 step について、prompt / model / effort の妥当性を評価する。評価は「維持 / 調整 / 削除候補」の 3 分類で記録する。
+
+### 評価観点
+
+各 step について以下を確認する:
+
+1. `system_prompt` / `append_system_prompt` が step 役割に合っているか、長すぎないか、他 step と指示重複していないか
+2. `model`（`opus` / `sonnet` / `haiku`）と `effort`（`low` / `medium` / `high` / `xhigh` / `max`）が品質・速度・コストに見合っていたか
+3. step 間の `continue: true` / 新規セッション選択が適切だったか
+
+### 分類と記録粒度
+
+- **維持**: 現状で問題なし。1〜2 行で根拠を残す
+- **調整**: 現状で軽微な問題あり。分類理由（1〜2 行）＋ 次ループでの具体的な修正案（例: `effort: medium → high`、prompt の一部削除）を添える
+- **削除候補**: step 自体または該当設定を外す方向。分類理由と削除後の想定挙動を添える
+
+### 出力先
+
+- 本文（全 step の評価）は `RETROSPECTIVE.md` §8 相当の節に残す
+- そのうち「次 1 ループ以内に試す具体的な調整」のみ §4.5 handoff FEEDBACK に転記する。複数バージョンにまたがる検討や、すぐには試さない観察メモは `RETROSPECTIVE.md` に留める（handoff の消費枠を無駄にしない）
+
+### 評価テンプレ例
+
+```markdown
+## §8 workflow prompt / model 評価
+
+### 評価対象バージョン: ver{X.Y}
+
+| step | model | effort | 分類 | 理由・次ループ案 |
+|---|---|---|---|---|
+| issue_plan | opus | high | 維持 | ROUGH_PLAN.md の判断精度良好 |
+| split_plan | sonnet | medium | 調整 | IMPLEMENT.md の詳細が浅い。effort → high で試す |
+| imple_plan | opus | max | 維持 | 実装品質問題なし |
+```
+
+### 省略条件
+
+評価材料がないループ（直前バージョンでモデル変更を試していない / step 実装差分が皆無）は本節を省略してよい。毎ループで形骸的な評価を要求しない。差分評価（直前バージョンから変えた step のみ再評価）を基本姿勢とする。
+
+### 「即時適用」との関係
+
+本節は評価記録であり、YAML / SKILL の実編集は §4.5 handoff → 次ループの `/issue_plan` → ユーザー判断 or AI 編集という経路で行う。評価時点では YAML を直接編集しない（評価と適用の分離）。
+
 ## 4. 振り返り結果の記録
 
 - 振り返り結果を `docs/{カテゴリ}/ver{最新バージョン番号}/RETROSPECTIVE.md` に記録する
@@ -69,6 +114,59 @@ user-invocable: true
   - **対応済み（実装が完了し、ISSUE の目的を果たした）** → 削除する
   - **持ち越し中（`status: ready / ai` で残してある、`status: need_human_action / human` で人間対応待ち、または明示的に次バージョン以降に先送り宣言したもの）** → 削除しない。MEMO.md / 当 RETROSPECTIVE.md に持ち越し理由を記載
   - frontmatter 無し（`raw / human` 扱い）→ 触らない
+
+## 4.5 次ループへの FEEDBACK handoff
+
+retrospective の成果のうち「次ループで 1 回だけ読ませたい補助線」を `FEEDBACKS/<filename>.md` に書き出し、次ループの `/issue_plan` に引き継ぐ。恒久メモリではない点に注意する（書き出された FEEDBACK は次ループで 1 回だけ消費され、その後 `FEEDBACKS/done/` へ退避される。§4 運用ルールに従う）。
+
+### 目的
+
+`RETROSPECTIVE.md` は記録として残り続けるが、次ループの `/issue_plan` が毎回読み直す保証はない。handoff は「retrospective が次ループに強く渡したい 1 回限りの補助入力」だけを抽出する場として機能する。
+
+### 書き出し対象
+
+以下のいずれかに該当するものを 1 ファイルに集約する:
+
+1. 次に着手すべき ISSUE の候補（優先選定の根拠つき）
+2. 直前バージョンで保留した判断の継続確認事項
+3. workflow 設定（prompt / model / temperature）見直しメモ（§3.5 評価結果との接続点）
+4. 次 `/issue_plan` に渡したい注意点・判断のヒント
+
+### 書き出さないケース
+
+「次ループで特に引き継ぐべき内容がない」なら書き出しを省略する。空の handoff / 感想のみの FEEDBACK は禁止（次ループの FEEDBACK 消費枠を無駄にしない）。
+
+### ファイル書式
+
+- **ファイル名**: `FEEDBACKS/handoff_ver{現行バージョン}_to_next.md`（ver14.0 からの handoff なら `FEEDBACKS/handoff_ver14.0_to_next.md`）
+- **frontmatter**: `step: issue_plan`（次ループの `/issue_plan` にのみ注入する。retrospective 由来の handoff はほぼ全て issue_plan 向けのため、catch-all ではなく step 限定で書く）
+- **本文**: 「## 背景」「## 次ループで試すこと」「## 保留事項」の 3 節を推奨
+
+### 例
+
+```markdown
+---
+step: issue_plan
+---
+
+## 背景
+
+ver{X.Y} の retrospective で、§3.5 評価により `/split_plan` の effort を上げる余地が確認された。
+
+## 次ループで試すこと
+
+- `claude_loop.yaml` の `split_plan` step を `effort: medium → high` で試す
+- 併せて `imple_plan` の system_prompt 末尾の重複記述（rules にも書かれている）を削除
+
+## 保留事項
+
+- `cli-flag-compatibility-system-prompt.md` は本バージョンで rules 化済。次ループで done 化判断
+```
+
+### 即時適用対象
+
+本節の追記自体が `/retrospective` SKILL 編集であり、§4「即時適用してよい変更」の範囲に含まれる。`scripts/claude_sync.py` 手順（export → edit → import）で反映する。
+
 ## 5. Git にコミットする
 
 ### 即時適用の検証

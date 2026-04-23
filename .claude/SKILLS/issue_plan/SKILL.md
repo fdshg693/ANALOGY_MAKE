@@ -32,6 +32,7 @@ user-invocable: true
   - 最新バージョンの `CURRENT.md` があれば参照する。`CURRENT.md` が分割されている場合（`CURRENT_{トピック名}.md` へのリンクを含む場合）は、今回のタスクに関連する詳細ファイルのみを読む。`CURRENT.md` がなければユーザーへの質問＋サブエージェントによる調査で把握する
   - `ISSUES/{カテゴリ}` フォルダ配下に優先度の高い課題があれば参照して、把握する（ `high`・`medium`・`low`フォルダに分かれている）
   - 直前バージョンの `RETROSPECTIVE.md` が存在する場合は確認し、未実施の改善提案がないか確認する
+  - **retrospective からの FEEDBACK handoff**: `FEEDBACKS/handoff_ver*_to_next.md` が存在する場合、`--append-system-prompt` 経由で自動注入される。ROUGH_PLAN の判断材料として優先度高で参照する（retrospective が次ループ向けに意図的に書き出した補助線であり、感想ではなく次ステップに効く入力として扱う）。本 handoff は次ループで 1 回だけ消費され `FEEDBACKS/done/` に移動するため、恒久メモリではない
   - **ISSUE レビューフェーズ**: `ISSUES/{カテゴリ}/{high,medium,low}/*.md` を走査し、`status: review` かつ `assigned: ai` の ISSUE を 1 件ずつ Read → 判定 → frontmatter を `ready / ai` または `need_human_action / human` に書き換える。判定基準・書き換え手順・`## AI からの依頼` 追記の書式は `.claude/skills/issue_review/SKILL.md` を一次資料とする。レビュー結果サマリ（遷移件数・対象パス）と状態分布（`status × assigned` の 5 区分）を ROUGH_PLAN 本文冒頭に `## ISSUE レビュー結果` / `## ISSUE 状態サマリ` の見出しで残す
 
 - 目標となるプランを把握して

@@ -234,7 +234,9 @@ python scripts/claude_loop.py --workflow full --start 3
 
 ## 拡張ガイド
 
+scripts 系を編集・追加するときに毎回守るべき stable な規約は `.claude/rules/scripts.md` に集約。本節は「拡張時の手順」に関する詳細のみを扱う。
+
 - **新しい SKILL を追加する場合**: `claude_loop.yaml` または `claude_loop_quick.yaml` の `steps:` に `{ name, prompt, model?, effort?, system_prompt?, append_system_prompt?, args?, continue? }` を追記する
 - **Python コードを拡張する場合**: 触る関心事に対応する `claude_loop_lib/` 配下のモジュールに手を入れる。責務分担はファイル一覧を参照
-- **新規 CLI オプションを追加する場合**: `claude_loop.py` の `parse_args()` と、追加した値を渡す先（多くは `claude_loop_lib/commands.py` の `build_command`）の両方を更新する必要がある
-- **フィードバックのスキーマ拡張**: `claude_loop_lib/feedbacks.py` の `parse_feedback_frontmatter` に追加フィールドのパースを足す
+- **新規 CLI オプションを追加する場合**（rules §3）: `claude_loop.py` の `parse_args()` と、追加した値を渡す先（多くは `claude_loop_lib/commands.py` の `build_command`）の両方を更新する必要がある
+- **フィードバックのスキーマ拡張**（rules §4）: `claude_loop_lib/feedbacks.py` の `parse_feedback_frontmatter` に追加フィールドのパースを足す

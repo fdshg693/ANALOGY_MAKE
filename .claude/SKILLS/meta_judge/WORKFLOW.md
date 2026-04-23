@@ -40,8 +40,10 @@
 
 `claude_loop.yaml` / `claude_loop_quick.yaml` には各ステップのモデル（`model`）と推論エフォート（`effort`）を指定できる。トップレベルの `defaults:` で全ステップ共通値を定義し、各ステップで必要に応じて上書きする。省略時は CLI デフォルトが使用される（従来挙動）。
 
+なお、`/retrospective` が書き出した `FEEDBACKS/handoff_ver*_to_next.md` は次ループの `/issue_plan` で 1 回だけ消費され、prompt / model 調整の具体案を次ループに引き継ぐ経路として機能する（詳細は `.claude/skills/retrospective/SKILL.md` §3.5 / §4.5）。
+
 ### 保守上の注意
 
-- `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の `command` / `mode` / `defaults` セクションは同一内容で維持する（いずれかを変更した場合は必ず 3 ファイル全てを同期すること）
+- `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の `command` / `defaults` セクションは同一内容で維持する（いずれかを変更した場合は必ず 3 ファイル全てを同期すること）
 - 両ワークフローの 1 ステップ目は `/issue_plan` で共通。ROUGH_PLAN.md 冒頭の `workflow: full | quick` / `source: issues | master_plan` で後続分岐の材料が残る（`--workflow auto` 分岐ロジックは ver9.0 で実装済み）
 - `--workflow auto`（新デフォルト）は `claude_loop_issue_plan.yaml` で `/issue_plan` を先行実行し、出力された最新 `ROUGH_PLAN.md` の frontmatter `workflow:` に応じて `claude_loop.yaml` / `claude_loop_quick.yaml` の `steps[1:]` を実行する。`workflow:` 未記載・不正値時は `full` にフォールバックして警告を出す

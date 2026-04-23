@@ -10,6 +10,8 @@
 - PyYAML。未インストールの場合: `python -m pip install pyyaml`
 - Claude CLI（`claude` コマンドが PATH 上にあること）
 
+`scripts/` 編集時に毎回守るべき stable な規約（Python 前提・pathlib 使用・CLI 引数処理・frontmatter 作法・ログ出力）は `.claude/rules/scripts.md` に集約されている。本 README は全体像と詳細仕様の一次資料、rules は agents 向け簡潔版という責務分担。
+
 ## ファイル一覧
 
 ### ワークフロー実行（`claude_loop` 系）

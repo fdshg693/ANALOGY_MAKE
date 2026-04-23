@@ -22,6 +22,7 @@ from claude_loop_lib.workflow import (
 from claude_loop_lib.feedbacks import (
     parse_feedback_frontmatter, load_feedbacks, consume_feedbacks,
 )
+from claude_loop_lib.frontmatter import parse_frontmatter
 from claude_loop_lib.commands import build_command
 from claude_loop_lib.logging_utils import (
     create_log_path, format_duration,
@@ -399,6 +400,38 @@ class TestParseArgsAutoCommitBefore(unittest.TestCase):
     def test_flag_sets_true(self) -> None:
         result = self._parse(["--auto-commit-before"])
         assert result.auto_commit_before is True
+
+
+class TestParseFrontmatter(unittest.TestCase):
+    """Tests for the shared parse_frontmatter()."""
+
+    def test_valid_dict(self) -> None:
+        fm, body = parse_frontmatter("---\nkey: value\n---\nbody")
+        assert fm == {"key": "value"}
+        assert body == "body"
+
+    def test_no_leading_delimiter(self) -> None:
+        text = "no frontmatter here"
+        fm, body = parse_frontmatter(text)
+        assert fm is None
+        assert body == text
+
+    def test_missing_closing_delimiter(self) -> None:
+        text = "---\nkey: value\nbody text"
+        fm, body = parse_frontmatter(text)
+        assert fm is None
+        assert body == text
+
+    def test_invalid_yaml(self) -> None:
+        text = "---\n: : : invalid\n---\nbody"
+        fm, body = parse_frontmatter(text)
+        assert fm is None
+        assert body == text
+
+    def test_non_dict_yaml(self) -> None:
+        fm, body = parse_frontmatter("---\n- a\n- b\n---\nbody")
+        assert fm is None
+        assert body == "body"
 
 
 class TestParseFeedbackFrontmatter(unittest.TestCase):

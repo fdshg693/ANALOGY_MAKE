@@ -86,3 +86,19 @@ ver9.0 では `--start 1` のみ許可する実装。フェーズ 2 からの再
 ### D4: テストにおける `patch("builtins.print")` の使用
 
 `TestAutoWorkflowIntegration` で `builtins.print` をパッチしている。これは Windows (cp932) の stdout が YAML 内の em-dash (`—`) を encode できず UnicodeEncodeError を投げるための回避。本番 CLI 実行時は実際に em-dash が含まれたコマンドをテ表示する必要があるため、環境変数 `PYTHONIOENCODING=utf-8` を推奨（README に追記してもよいが、今回は最小修正優先で見送り）。
+
+本番実走時のエンコードエラー有無は D3 の「次のワークフロー実走で自然に確認される」範囲に含まれる。問題が発生した場合は `sys.stdout.reconfigure(encoding='utf-8')` を `claude_loop.py` 冒頭に追加するか、README に `PYTHONIOENCODING=utf-8` を明示するかを /wrap_up 時点で判断する。
+
+## wrap_up 対応記録（ver9.0）
+
+| 項目 | 対応 | 理由 |
+|---|---|---|
+| L1: `_execute_yaml()` 追加 | ⏭️ 対応不要 | IMPLEMENT.md 計画改善版。追加対応不要 |
+| L2: `_resolve_uncommitted_status()` 切り出し | ⏭️ 対応不要 | 合理的なリファクタ。副作用なし |
+| R1: mtime 依存 | 📋 先送り済み | `ISSUES/util/low/auto-mtime-robustness.md` に記録済み |
+| R2〜R8 | ⏭️ 対応不要 | 検証済み or 設計上検証不要と確認済み |
+| D1: command セクション重複 | ⏭️ 対応不要 | YAGNI。IMPLEMENT.md §12 でスコープ外明記済み |
+| D2: auto + --start N>1 | ⏭️ 対応不要 | 将来拡張。IMPLEMENT.md §12 でスコープ外明記済み |
+| D3: 動作確認の範囲 | ⏭️ 対応不要 | 次ワークフロー実走で自然に確認される |
+| D4: PYTHONIOENCODING | ⏭️ 対応不要 | 本番問題発生時に対処。D3 の観察範囲に含める |
+| `issue-plan-standalone-yaml.md` | ✅ ISSUE 削除 | ver9.0 で `claude_loop_issue_plan.yaml` 作成・解決済み |

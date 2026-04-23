@@ -170,6 +170,10 @@ ver8.0 RETROSPECTIVE §3-3 も同結論（ver9.0 メジャー推奨）。
 4. **`claude_sync.py` 運用の継続**: `.claude/` 配下の編集がある場合は `export → 編集 → import` フローを imple_plan 冒頭で明示
 5. **`/issue_plan` → 後続 YAML 切替の実走検証**: `auto` モードで `/issue_plan` 実行後に選択された YAML が正しく後続ステップを起動するかを確認（`issue-plan-split-plan-handoff-verification.md` の観察とも連動）
 
+## 事前リファクタリング
+
+**不要**。`claude_loop.py` の `main()` / `_run_steps` / `workflow.resolve_*` の現構造で二段実行（`/issue_plan` → 後続 YAML の step[1:]）は吸収可能。`--workflow` の型変更（Path → str）も argparse の `type=` 差し替えで十分であり、事前の共通化は過剰抽象。
+
 ## 成果物
 
 - `docs/util/ver9.0/IMPLEMENT.md`（`/split_plan` で作成）

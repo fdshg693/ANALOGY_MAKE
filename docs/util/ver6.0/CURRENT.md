@@ -109,4 +109,4 @@ python scripts/issue_status.py util       # カテゴリ指定
 | ファイル | status | assigned |
 |---|---|---|
 | `ISSUES/util/medium/issue-review-rewrite-verification.md` | ready | ai |
-| `ISSUES/util/low/parse-frontmatter-shared-util.md` | raw | ai |
+| `ISSUES/util/low/parse-frontmatter-shared-util.md` | ready | ai |

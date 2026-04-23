@@ -88,9 +88,3 @@ python scripts/claude_loop.py --no-notify                            # 完了通
 | medium | `ISSUES/util/medium/スクリプト改善.md` | `scripts/` 配下の README 新規作成・ファイル分割（ver4.1 以降で対応予定） |
 
 `high` / `low` ディレクトリは現在空。
-
-## 未実装（ver4.1 以降の予定）
-
-- **セッション継続機能**: `continue: true` / `-r` / `--session-id` / `--output-format stream-json` パーサ（PHASE4.0 残項目）
-- **`defaults` 明示リセット**: YAML で `model: null` 等により個別ステップで defaults を無効化する機能（ver4.0 では `None` は「未指定」扱いで、defaults が継承される仕様）
-- **`.claude/SKILLS/meta_judge/WORKFLOW.md` のガイドライン改訂**: モデル/effort 使い分け方針の明文化（実運用で挙動を確認してから別バージョンで扱う）

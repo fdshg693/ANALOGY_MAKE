@@ -84,3 +84,14 @@ IMPLEMENT.md L361 の通り、前ステップが exit_code ≠ 0 なら `_run_st
 ### リファクタリングの必要性を感じた点
 
 なし。`_run_steps` のセッション管理ロジックは局所的に追加可能で、既存責務との混在も最小限。
+
+---
+
+## wrap_up 対応結果
+
+| 項目 | 対応 | 内容 |
+|---|---|---|
+| MASTER_PLAN.md PHASE4.0 更新 | ✅ 対応完了 | 「部分実装」→「実装済み（ver5.0 でセッション継続を実装し全項目完了）」に更新 |
+| `docs/util/ver5.0/CURRENT.md` 作成 | 📋 次バージョン先送り | write_current 本来の責務。`ISSUES/util/medium/ver5.0-CURRENT.md未作成.md` として記録 |
+| `docs/util/ver4.0/CURRENT.md` L92-96 削除 | ✅ 対応完了 | 「未実装（ver4.1 以降の予定）」セクション（セッション継続機能の記述）を削除 |
+| WORKFLOW.md への `continue` ガイド追記 | ⏭️ 対応不要 | MEMO に「ver5.0 スコープ外」と明記済みのため |

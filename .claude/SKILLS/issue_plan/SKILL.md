@@ -10,7 +10,7 @@ user-invocable: true
 - 最新バージョン番号: !`bash .claude/scripts/get_latest_version.sh`
 - 次のマイナーバージョン番号: !`bash .claude/scripts/get_latest_version.sh next-minor`
 - 次のメジャーバージョン番号: !`bash .claude/scripts/get_latest_version.sh next-major`
-- AI 向け ready/review ISSUE: !`python scripts/issue_worklist.py --format json`
+- AI 向け ready/review ISSUE: !`python scripts/issue_worklist.py --format json --limit 20`
 
 ## 役割
 

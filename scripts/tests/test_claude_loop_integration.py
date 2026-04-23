@@ -311,5 +311,86 @@ class TestStartupValidationIntegration(unittest.TestCase):
             mock_exec.assert_not_called()
 
 
+class TestFeedbackInvariant(unittest.TestCase):
+    """Integration: FEEDBACKS/ must be preserved on non-zero step exit."""
+
+    _SINGLE_STEP_YAML = (
+        "steps:\n"
+        "  - name: test-step\n"
+        "    prompt: /test\n"
+    )
+
+    def _setup_cwd(self, root: Path) -> Path:
+        """Create minimal cwd skeleton and place one dummy feedback file.
+
+        Returns the FEEDBACKS/ directory path.
+        """
+        (root / ".claude").mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / "CURRENT_CATEGORY").write_text("util", encoding="utf-8")
+        feedbacks = root / "FEEDBACKS"
+        feedbacks.mkdir()
+        (feedbacks / "dummy-feedback.md").write_text(
+            "Dummy feedback body.", encoding="utf-8"
+        )
+        return feedbacks
+
+    def _run_with_returncode(self, cwd: Path, mock_returncode: int) -> int:
+        """Write a single-step YAML, run main(), return exit_code."""
+        yaml_path = cwd / "test-workflow.yaml"
+        yaml_path.write_text(self._SINGLE_STEP_YAML, encoding="utf-8")
+
+        def fake_run(cmd, **kwargs):
+            if cmd and cmd[0] == "git":
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return MagicMock(returncode=mock_returncode)
+
+        argv = [
+            "claude_loop.py",
+            "--workflow", str(yaml_path),
+            "--cwd", str(cwd),
+            "--no-log", "--no-notify",
+        ]
+        with (
+            patch("sys.argv", argv),
+            patch("claude_loop.subprocess.run", side_effect=fake_run),
+            patch("claude_loop.check_uncommitted_changes", return_value=False),
+            patch("claude_loop.shutil.which", return_value="/usr/bin/claude"),
+            patch("claude_loop.validate_startup"),
+            patch("builtins.print"),
+        ):
+            return claude_loop.main()
+
+    def test_feedback_preserved_on_step_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            feedbacks = self._setup_cwd(cwd)
+
+            exit_code = self._run_with_returncode(cwd, mock_returncode=1)
+
+            assert exit_code == 1
+            assert (feedbacks / "dummy-feedback.md").exists(), (
+                "FEEDBACK must remain under FEEDBACKS/ when step exits non-zero"
+            )
+            done_dir = feedbacks / "done"
+            assert not done_dir.exists() or not any(done_dir.iterdir()), (
+                "FEEDBACKS/done/ must not be populated on step failure"
+            )
+
+    def test_feedback_consumed_on_step_success(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            feedbacks = self._setup_cwd(cwd)
+
+            exit_code = self._run_with_returncode(cwd, mock_returncode=0)
+
+            assert exit_code == 0
+            assert not (feedbacks / "dummy-feedback.md").exists(), (
+                "FEEDBACK must be removed from FEEDBACKS/ after successful step"
+            )
+            assert (feedbacks / "done" / "dummy-feedback.md").exists(), (
+                "FEEDBACK must be moved to FEEDBACKS/done/ after successful step"
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

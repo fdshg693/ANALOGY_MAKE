@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shlex
 import shutil
 import subprocess
@@ -126,19 +127,51 @@ def validate_auto_args(resolved: str | Path, args: argparse.Namespace) -> None:
         )
 
 
-def _find_latest_rough_plan(cwd: Path) -> Path:
-    """Locate the most recently modified ROUGH_PLAN.md under docs/{CURRENT_CATEGORY}/ver*/."""
+def _rough_plan_candidates(cwd: Path) -> tuple[Path, list[Path]]:
+    """Return (docs_dir, candidate_paths) for all ROUGH_PLAN.md under the current category."""
     cat_file = cwd / ".claude" / "CURRENT_CATEGORY"
     category = cat_file.read_text(encoding="utf-8").strip() if cat_file.is_file() else "app"
     docs_dir = cwd / "docs" / category
-    candidates = list(docs_dir.glob("ver*/ROUGH_PLAN.md"))
+    return docs_dir, list(docs_dir.glob("ver*/ROUGH_PLAN.md"))
+
+
+def _version_key(path: Path) -> tuple[int, int]:
+    """Extract (major, minor) for natural version sort from a ROUGH_PLAN.md path."""
+    m = re.match(r"ver(\d+)(?:\.(\d+))?$", path.parent.name)
+    if m:
+        return (int(m.group(1)), int(m.group(2)) if m.group(2) is not None else -1)
+    return (0, 0)
+
+
+def _find_latest_rough_plan(cwd: Path, mtime_threshold: float | None = None) -> Path:
+    """Locate the ROUGH_PLAN.md created by phase 1 of --workflow auto.
+
+    When mtime_threshold is given, only files with mtime strictly greater than
+    the threshold are considered (guards against pre-existing files being picked up
+    by a touch or coarse-resolution filesystem). Among qualifying files the highest
+    version number wins. Raises SystemExit if none found.
+
+    When mtime_threshold is None, falls back to the original mtime-max behaviour
+    (used by callers that do not track the pre-phase-1 snapshot).
+    """
+    docs_dir, candidates = _rough_plan_candidates(cwd)
     if not candidates:
         raise SystemExit(
             f"auto workflow: no ROUGH_PLAN.md found under {docs_dir}. "
             f"Did /issue_plan fail silently? "
             f"(When .claude/CURRENT_CATEGORY is unset, 'app' is used.)"
         )
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+    if mtime_threshold is None:
+        return max(candidates, key=lambda p: p.stat().st_mtime)
+
+    new_candidates = [p for p in candidates if p.stat().st_mtime > mtime_threshold]
+    if not new_candidates:
+        raise SystemExit(
+            f"auto workflow: /issue_plan did not create a new ROUGH_PLAN.md "
+            f"(no file under {docs_dir} has mtime newer than the pre-phase-1 snapshot). "
+            f"Check that /issue_plan ran successfully and wrote its output."
+        )
+    return max(new_candidates, key=_version_key)
 
 
 def _read_workflow_kind(rough_plan: Path) -> str:
@@ -249,6 +282,13 @@ def _run_auto(
     """Run --workflow auto: phase 1 = /issue_plan, phase 2 = full|quick steps[1:]."""
     phase1_yaml = yaml_dir / ISSUE_PLAN_YAML_FILENAME
 
+    # Record mtime of every existing ROUGH_PLAN.md before phase 1 runs.
+    # Only files created after this snapshot (mtime > threshold) will be
+    # considered as the phase-1 output, guarding against stale touch / coarse
+    # filesystem resolution causing a wrong file to be picked up.
+    _, pre_existing = _rough_plan_candidates(cwd)
+    mtime_threshold = max((p.stat().st_mtime for p in pre_existing), default=0.0)
+
     exit_code = _execute_yaml(
         phase1_yaml, args, cwd, tee, log_path, uncommitted_status,
         start_index=0, continue_disabled=False,
@@ -268,7 +308,7 @@ def _run_auto(
         _out("--- auto: phase2 skipped (--dry-run) ---")
         return 0
 
-    rough_plan = _find_latest_rough_plan(cwd)
+    rough_plan = _find_latest_rough_plan(cwd, mtime_threshold=mtime_threshold)
     phase2_kind = _read_workflow_kind(rough_plan)
     phase2_yaml = yaml_dir / (
         QUICK_YAML_FILENAME if phase2_kind == "quick" else FULL_YAML_FILENAME

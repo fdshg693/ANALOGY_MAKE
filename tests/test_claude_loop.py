@@ -19,7 +19,7 @@ import claude_loop
 from claude_loop import (
     parse_args, _run_steps,
     validate_auto_args, _find_latest_rough_plan, _read_workflow_kind,
-    _compute_remaining_budget,
+    _compute_remaining_budget, _version_key,
 )
 from claude_loop_lib.workflow import (
     load_workflow, get_steps, resolve_defaults,
@@ -1311,6 +1311,50 @@ class TestFindLatestRoughPlan(unittest.TestCase):
             result = _find_latest_rough_plan(tmp)
             assert result == p
 
+    # --- threshold tests ---
+
+    def test_threshold_excludes_pre_existing_files(self) -> None:
+        import os
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            paths = self._make_tree(tmp, "util", ["ver1.0", "ver2.0"])
+            # old file: mtime = 1000 (threshold); new file: mtime = 2000
+            os.utime(paths[0], (1000, 1000))
+            os.utime(paths[1], (2000, 2000))
+            result = _find_latest_rough_plan(tmp, mtime_threshold=1000.0)
+            # ver1.0 is AT the threshold (not strictly greater), ver2.0 is newer
+            assert result == paths[1]
+
+    def test_threshold_no_new_files_raises(self) -> None:
+        import os
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            paths = self._make_tree(tmp, "util", ["ver1.0"])
+            os.utime(paths[0], (1000, 1000))
+            with self.assertRaises(SystemExit) as cm:
+                _find_latest_rough_plan(tmp, mtime_threshold=1000.0)
+            assert "did not create a new ROUGH_PLAN.md" in str(cm.exception)
+
+    def test_threshold_multiple_new_files_highest_version_wins(self) -> None:
+        import os
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            paths = self._make_tree(tmp, "util", ["ver9.1", "ver10.0", "ver9.0"])
+            # All three are newer than threshold; highest version (ver10.0) must win
+            for p in paths:
+                os.utime(p, (2000, 2000))
+            result = _find_latest_rough_plan(tmp, mtime_threshold=1000.0)
+            assert result == paths[1]  # ver10.0
+
+    def test_version_key_natural_sort(self) -> None:
+        import os
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            paths = self._make_tree(tmp, "util", ["ver9.1", "ver10.0"])
+            assert _version_key(paths[0]) == (9, 1)
+            assert _version_key(paths[1]) == (10, 0)
+            assert _version_key(paths[1]) > _version_key(paths[0])
+
 
 class TestComputeRemainingBudget(unittest.TestCase):
     """Tests for _compute_remaining_budget()."""
@@ -1354,6 +1398,8 @@ class TestAutoWorkflowIntegration(unittest.TestCase):
             claude_calls.append(cmd)
             return MagicMock(returncode=mock_subprocess_returncode)
 
+        rough_plan_path = cwd / "docs" / "util" / "ver1.0" / "ROUGH_PLAN.md"
+
         argv = [
             "claude_loop.py", "--workflow", "auto",
             "--cwd", str(cwd),
@@ -1366,6 +1412,10 @@ class TestAutoWorkflowIntegration(unittest.TestCase):
             patch("claude_loop.check_uncommitted_changes", return_value=False),
             patch("claude_loop.shutil.which", return_value="/usr/bin/claude"),
             patch("builtins.print"),
+            # Phase 1 is mocked (subprocess), so no real file is created.
+            # Patch _find_latest_rough_plan to return the pre-created stub so
+            # phase-2 dispatch logic can be exercised independently of threshold.
+            patch("claude_loop._find_latest_rough_plan", return_value=rough_plan_path),
         ):
             exit_code = claude_loop.main()
         # Filter claude commands (drop any that sneak through)

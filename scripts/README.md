@@ -27,6 +27,7 @@
 | モジュール | 内容 |
 |---|---|
 | `workflow.py` | YAML ロード・バリデーション・`get_steps` / `resolve_defaults` / `resolve_command_config` / `resolve_mode` |
+| `validation.py` | 起動前 validation。`validate_startup()` を公開（詳細は下記「起動前 validation」節） |
 | `feedbacks.py` | `FEEDBACKS/` 配下の frontmatter 解析、ロード、消費（`done/` 移動） |
 | `commands.py` | `build_command`、ステップイテレータ（`iter_steps_for_loop_limit` / `iter_steps_for_step_limit`） |
 | `logging_utils.py` | `TeeWriter`、`create_log_path`、`print_step_header`、`format_duration` |
@@ -125,6 +126,31 @@ python scripts/claude_sync.py import
 ```
 
 外部依存なし（標準ライブラリのみ）。
+
+## 起動前 validation
+
+`claude_loop.py` は step 1 を実行する前に以下を検査する。1 件でも `error` があれば exit code 2 で終了し、step 実行には進まない。`--dry-run` 時も走る。
+
+| 検査項目 | 重大度 |
+|---|---|
+| `.claude/CURRENT_CATEGORY` の中身（空・不正文字は error、欠如は warning → `app` フォールバック） | error / warning |
+| `docs/{category}/` ディレクトリが存在すること | error |
+| `command.executable` が PATH 上で解決できること (`shutil.which`) | error |
+| YAML の存在・parse 成功・top-level mapping | error |
+| `defaults` / `steps[]` のキー集合が許容範囲内 (`model` / `effort` / `system_prompt` / `append_system_prompt` / `name` / `prompt` / `args` / `continue`) | error |
+| override キーの型（非空 string） / `continue` の型（bool） | error |
+| `model` 値が既知セット (`opus` / `sonnet` / `haiku`) に含まれること | **warning** |
+| `effort` 値が既知セット (`low` / `medium` / `high` / `xhigh` / `max`) に含まれること | **warning** |
+| step.prompt の先頭が `/` の場合、`.claude/skills/<name>/SKILL.md` が存在すること | error |
+| `command` セクションが指定された場合、mapping であること | error |
+
+`--workflow auto` の場合、phase 1 (`claude_loop_issue_plan.yaml`) と phase 2 候補 2 本 (`claude_loop.yaml` / `claude_loop_quick.yaml`) を**すべて事前に検証**する。これにより ROUGH_PLAN.md 生成結果に関わらず「validation 通過 = 最後まで到達可能」という契約が成り立つ。
+
+エラーは可能な範囲で一括収集されて末尾に列挙される（例: YAML A が parse 失敗しても、YAML B 内の step typo はそのまま報告される）。ただし、YAML 単位での parse 失敗や top-level 非 mapping など致命的な段階では当該 YAML の後続検証のみスキップされる。
+
+### 拡張ガイド
+
+`validation.py` は `workflow.py` から `ALLOWED_STEP_KEYS` / `ALLOWED_DEFAULTS_KEYS` / `OVERRIDE_STRING_KEYS` を import しており、両者は片方の変更に自動で追随する。新しい override キーを追加する場合は `workflow.py` の定数のみ更新すればよい。
 
 ## テスト
 

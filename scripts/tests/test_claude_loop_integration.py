@@ -200,6 +200,7 @@ class TestAutoWorkflowIntegration(unittest.TestCase):
             patch("claude_loop.subprocess.run", side_effect=fake_run),
             patch("claude_loop.check_uncommitted_changes", return_value=False),
             patch("claude_loop.shutil.which", return_value="/usr/bin/claude"),
+            patch("claude_loop.validate_startup"),
             patch("builtins.print"),
             # Phase 1 is mocked (subprocess), so no real file is created.
             # Patch _find_latest_rough_plan to return the pre-created stub so
@@ -281,6 +282,33 @@ class TestAutoWorkflowIntegration(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 claude_loop.main()
         assert "--start 1" in str(cm.exception)
+
+
+class TestStartupValidationIntegration(unittest.TestCase):
+    """Smoke test: validate_startup failure must abort before _execute_yaml."""
+
+    def test_validation_error_prevents_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            (cwd / ".claude").mkdir()
+            (cwd / ".claude" / "CURRENT_CATEGORY").write_text("util", encoding="utf-8")
+            (cwd / "docs" / "util").mkdir(parents=True)
+
+            argv = [
+                "claude_loop.py", "--workflow", "full",
+                "--cwd", str(cwd),
+                "--no-log", "--no-notify", "--dry-run",
+            ]
+            with (
+                patch("sys.argv", argv),
+                patch("claude_loop._execute_yaml") as mock_exec,
+                patch("builtins.print"),
+                patch("sys.stderr"),
+            ):
+                with self.assertRaises(SystemExit) as cm:
+                    claude_loop.main()
+            assert cm.exception.code == 2
+            mock_exec.assert_not_called()
 
 
 if __name__ == "__main__":

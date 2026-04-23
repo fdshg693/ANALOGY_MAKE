@@ -33,6 +33,7 @@ from claude_loop_lib.git_utils import (
     get_head_commit, check_uncommitted_changes, auto_commit_changes,
 )
 from claude_loop_lib.notify import notify_completion
+from claude_loop_lib.validation import validate_startup
 
 
 YAML_DIR = Path(__file__).resolve().parent
@@ -347,6 +348,8 @@ def main() -> int:
     cwd = args.cwd.expanduser().resolve()
     if not cwd.is_dir():
         raise SystemExit(f"Working directory not found: {cwd}")
+
+    validate_startup(resolved, args, YAML_DIR, cwd)
 
     uncommitted_status = _resolve_uncommitted_status(args, cwd)
 

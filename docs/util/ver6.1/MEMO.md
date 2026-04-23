@@ -34,4 +34,7 @@ IMPLEMENT.md §リスク・不確実性 の 3 項目:
 ## 後続バージョンへの申し送り
 
 - PHASE6.0（ver7.0 メジャー）で `scripts/issue_worklist.py` を追加する際、同じ `parse_frontmatter` を再利用できる
-- ISSUE `parse-frontmatter-shared-util.md`（low）は解消済み。`wrap_up` 時に `ISSUES/util/done/` へ移動推奨
+
+## wrap_up 対応結果
+
+- ✅ ISSUE `parse-frontmatter-shared-util.md`（low）を `ISSUES/util/done/` へ移動（`done/` ディレクトリ新規作成）

@@ -2,6 +2,7 @@
 status: raw
 assigned: ai
 priority: low
+reviewed_at: "2026-04-24"
 ---
 # `.claude/rules/*.md` の `paths:` frontmatter 自動読込挙動の検証
 

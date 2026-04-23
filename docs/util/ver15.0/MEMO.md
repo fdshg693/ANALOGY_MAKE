@@ -76,6 +76,15 @@ SKILL 配置パスの表記だけ実態に合わせて調整した: IMPLEMENT.md
 ## 次バージョンへの引き継ぎ候補
 
 - ver15.1 `/issue_plan` 着手時:
-  - 初回 scout run（`/wrap_up` smoke test か手動起動）の起票件数・品質を観察
+  - 初回 scout run（手動: `python scripts/claude_loop.py --workflow scout --category util --max-loops 1`）の起票件数・品質を観察し `issue-scout-noise-risk.md` をクローズ
   - 必要なら件数上限の調整・価値観点の再定義
   - PHASE7.1 §2（`QUESTIONS/` / `question` workflow）着手
+
+## wrap_up 対応結果
+
+| 項目 | 対応 | 理由 |
+|---|---|---|
+| smoke test（R1/R2 実検証） | ⏭️ 対応不要（ISSUE 化済み） | plan_review_agent 確認：ISSUE 化でトレース可能、unattended 初回実行はリスク高い。手動での実施を推奨 |
+| CURRENT.md 作成 | ⏭️ 対応不要（`/write_current` 対象） | wrap_up スコープ外。plan_review_agent 承認済み |
+| ISSUES/util/low/ の `reviewed_at` 補記 | ✅ 対応完了 | `rules-paths-frontmatter-autoload-verification.md` / `scripts-readme-usage-boundary-clarification.md` に `reviewed_at: "2026-04-24"` を追記 |
+| ISSUES 追加・削除 | ⏭️ 変更なし | 現状の 4 ファイル（medium×2, low×2）は維持が妥当（plan_review_agent 確認済み） |

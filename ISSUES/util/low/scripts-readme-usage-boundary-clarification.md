@@ -2,6 +2,7 @@
 status: raw
 assigned: ai
 priority: low
+reviewed_at: "2026-04-24"
 ---
 # scripts/README.md と scripts/USAGE.md の責務境界整理
 

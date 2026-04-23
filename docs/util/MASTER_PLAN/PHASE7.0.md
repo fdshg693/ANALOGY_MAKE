@@ -8,9 +8,9 @@ YAML のステップ別設定、起動前 validation、FEEDBACKS / ISSUES の運
 |---|---|---|---|
 | §1 | workflow YAML による step 単位の system prompt / model 設定 override | **実装済**（ver10.0 で条件①②充足、ver12.0 の validation で条件③充足） | ver10.0〜ver12.0 |
 | §2 | category・YAML・全 step の起動前 validation | **実装済**（ver12.0） | ver12.0 |
-| §3 | legacy `--auto` と対応 YAML 設定の撤去 | 未着手 | ver10.0 |
-| §4 | FEEDBACKS の 1 ループ限定運用と `FEEDBACKS/done` 退避 | 未着手 | ver10.1 |
-| §5 | `REQUESTS/AI` / `REQUESTS/HUMAN` の ISSUES への統合 | 未着手 | ver10.1 |
+| §3 | legacy `--auto` と対応 YAML 設定の撤去 | **実装済**（ver13.0） | ver10.0 |
+| §4 | FEEDBACKS の 1 ループ限定運用と `FEEDBACKS/done` 退避 | **実装済**（ver13.0） | ver10.1 |
+| §5 | `REQUESTS/AI` / `REQUESTS/HUMAN` の ISSUES への統合 | **実装済**（ver13.0） | ver10.1 |
 | §6 | `/retrospective` から次ループ向け FEEDBACK を書き出す handoff | 未着手 | ver10.1 |
 | §7 | `.claude/rules` の整備と `scripts` 向け stable rule 追加 | 未着手 | ver10.2 |
 | §8 | `/retrospective` による workflow system prompt / model 利用評価 | 未着手 | ver10.2 |

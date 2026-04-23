@@ -46,20 +46,20 @@ class TestParseArgsLoggingOptions(unittest.TestCase):
         assert result.log_dir == Path("/tmp/logs")
 
 
-class TestParseArgsAutoOption(unittest.TestCase):
-    """Tests for --auto CLI option."""
+class TestRejectsAutoFlag(unittest.TestCase):
+    """ver13.0: --auto flag is removed and must be rejected by argparse."""
 
     def _parse(self, args: list[str]) -> argparse.Namespace:
         with patch("sys.argv", ["claude_loop.py", *args]):
             return parse_args()
 
-    def test_auto_default_is_false(self) -> None:
-        result = self._parse([])
-        assert result.auto is False
+    def test_auto_flag_raises_systemexit(self) -> None:
+        with self.assertRaises(SystemExit):
+            self._parse(["--auto"])
 
-    def test_auto_flag(self) -> None:
-        result = self._parse(["--auto"])
-        assert result.auto is True
+    def test_default_has_no_auto_attribute(self) -> None:
+        result = self._parse([])
+        assert not hasattr(result, "auto")
 
 
 class TestParseArgsNotifyOption(unittest.TestCase):

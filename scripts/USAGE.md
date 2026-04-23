@@ -39,26 +39,20 @@ python scripts/issue_worklist.py --category app
 | `--no-log` | - | flag | `False` | ログファイル出力を無効化 |
 | `--no-notify` | - | flag | `False` | ワークフロー完了通知を無効化 |
 | `--auto-commit-before` | - | flag | `False` | ワークフロー開始前に未コミット変更を自動コミット |
-| `--auto` | - | flag | `False` | 自動実行モード強制（YAML の `mode.auto` をオーバーライド） |
 | `--max-loops` | - | int (>=1) | `1` | 最大ワークフローループ回数（`--max-step-runs` と排他） |
 | `--max-step-runs` | - | int (>=1) | - | 最大ステップ実行回数（`--max-loops` と排他） |
 
 ## YAML ワークフロー仕様
 
-ワークフロー YAML は `mode` / `command` / `defaults` / `steps` の 4 セクションで構成される。
+ワークフロー YAML は `command` / `defaults` / `steps` の 3 セクションで構成される（ver13.0 で `mode:` セクションは撤去）。
 
 ```yaml
-mode:
-  auto: false                  # デフォルトの実行モード（--auto で CLI からオーバーライド可能）
-
 command:
   executable: claude
   prompt_flag: -p
   args:
     - --dangerously-skip-permissions
-  auto_args:                   # auto モード時のみ common_args に追加される
     - --disallowedTools "AskUserQuestion"
-    - --append-system-prompt "..."
 
 defaults:                      # 省略可。省略時は各ステップで個別指定
   model: sonnet
@@ -79,8 +73,7 @@ steps:
 
 ### セクションの意味
 
-- **mode.auto**: `true` なら `command.args + command.auto_args` を結合した引数で Claude CLI を起動する。CLI の `--auto` で常に強制可能
-- **command.executable / prompt_flag / args / auto_args**: Claude 実行コマンドの構築素材。`args` は全モード共通、`auto_args` は auto モード時のみ追加
+- **command.executable / prompt_flag / args**: Claude 実行コマンドの構築素材。全ステップ共通
 - **defaults.model / effort / system_prompt / append_system_prompt**: 全ステップに適用する共通値。各ステップでキーが存在しない場合のみ参照される（**キー存在ベース**の上書き）
 - **steps[].model / effort / system_prompt / append_system_prompt**: ステップ固有の上書き。`None` は「未指定」として扱い defaults を継承。空文字列はエラー
 - **steps[].continue**: `true` なら直前ステップで使用した session ID を `-r <uuid>` で再利用し、前ステップの会話履歴を引き継いで実行する。`false` または省略時は新規 session ID（`uuid.uuid4()` で発行）を `--session-id <uuid>` で起動する。bool 以外（文字列・整数等）はエラー
@@ -112,14 +105,12 @@ string 型のみ。`None` は未指定扱い、空文字列はエラー。
 
 ### `append_system_prompt` の合成順序
 
-`build_command()` は `--append-system-prompt` 引数の本文を以下の順で連結する（区切りは空行 1 つ）:
+`build_command()` は `--append-system-prompt` 引数の本文を以下の順で連結する（区切りは空行 1 つ）。ver13.0 以降、2. の unattended 注意文は**常時**注入される（旧 auto モード分岐は撤去）:
 
 1. `Current workflow log: {path}` 行（ログ有効時）
-2. AUTO mode 注意文（auto モード時）
+2. Unattended 実行注意文（常時注入。`AskUserQuestion` 禁止と ISSUE 経由の人間依頼手順を指示）
 3. `## User Feedback` セクション（feedback 注入時）
 4. step / defaults の `append_system_prompt` 値（指定時）
-
-なお、YAML 側 `command.auto_args` の `--append-system-prompt` と、`build_command()` が組み立てる `--append-system-prompt` は CLI に **独立した 2 つの引数として渡る**（Claude CLI 側で両方とも append される既存挙動。PHASE7.0 §3 で auto_args 整理時に解消予定）。
 
 ### `continue` の使い分け
 
@@ -143,7 +134,7 @@ string 型のみ。`None` は未指定扱い、空文字列はエラー。
 
 **起動前 validation**: step 1 実行より前に、対象となる全 YAML（`--workflow auto` では 3 本すべて）に対して validation が走る。1 件でも error があれば exit code 2 で終了し、step は実行されない（`--dry-run` 時も実行される）。詳細は [`README.md` 「起動前 validation」節](README.md) を参照。
 
-`command` / `mode` / `defaults` セクションは `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の 3 ファイルで同一内容を維持する必要がある（いずれかを変更した場合は必ず 3 ファイル全てを同期すること）。
+`command` / `defaults` セクションは `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の 3 ファイルで同一内容を維持する必要がある（いずれかを変更した場合は必ず 3 ファイル全てを同期すること）。
 
 ### サンプル YAML
 
@@ -177,7 +168,11 @@ step: [split_plan, imple_plan]
 
 ### 消費後の挙動
 
-ステップが正常終了した時点で、注入されたフィードバックファイルは `FEEDBACKS/done/` に `shutil.move` される。`FEEDBACKS/done/` 配下は次回以降のロードでは対象外。
+ステップが正常終了した時点で、注入されたフィードバックファイルは `FEEDBACKS/done/` に `shutil.move` される。`FEEDBACKS/done/` 配下は `load_feedbacks()` の非再帰 glob の対象外のため、次回以降のロードでは拾われない（done/ のファイルを再利用したい場合は `FEEDBACKS/` に手動で戻す）。
+
+### 異常終了時のふるまい
+
+ステップが非ゼロ exit / 例外 / Ctrl-C で終了した場合、`consume_feedbacks()` は呼ばれず、FEEDBACK は `FEEDBACKS/` 直下に残る。次回 run で再度読み込まれるため、retry 時に同じフィードバックが再適用される挙動になる（仕様）。
 
 ## ログフォーマット（詳細）
 

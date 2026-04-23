@@ -22,7 +22,7 @@ user-invocable: true
 
 `/issue_plan` が作成した `ROUGH_PLAN.md`（`docs/{カテゴリ}/ver{次のバージョン番号}/ROUGH_PLAN.md`）を読み、対象タスクを固定する。
 
-ROUGH_PLAN.md frontmatter に `workflow: full` が記録されていることを確認する。`quick` になっている場合は本ステップは実行されるべきでないため、`REQUESTS/AI/` に整合性エラーとして記録し終了する。
+ROUGH_PLAN.md frontmatter に `workflow: full` が記録されていることを確認する。`quick` になっている場合は本ステップは実行されるべきでないため、`logs/workflow/` にエラー記録しつつ `ISSUES/{カテゴリ}/high/split-plan-consistency-error-ver{X.Y}.md` を作成（frontmatter: `status: need_human_action` / `assigned: human`）して終了する。
 
 1. 承認された `ROUGH_PLAN.md` に基づいて、実装計画を作成する
   - **既存ファイルの事前確認**: 変更対象の既存ファイル（ソースコード、設定ファイル、`.gitignore` 等）は、計画に含める前に現在の内容を読んで確認すること。既に対応済みの設定や存在する機能を重複して計画に含めることを防ぐ

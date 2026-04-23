@@ -35,7 +35,6 @@ def _make_args(workflow: str = "full") -> argparse.Namespace:
         no_log=True,
         no_notify=True,
         auto_commit_before=False,
-        auto=False,
         max_loops=1,
         max_step_runs=None,
     )
@@ -323,6 +322,65 @@ class TestValidateStartupAggregation(_TempCwdBase):
         errs_b = _validate_single_yaml(self.tmp_dir / "b.yaml", self.tmp_dir)
         assert any("parse error" in v.message.lower() for v in errs_a)
         assert any("SKILL" in v.message for v in errs_b)
+
+
+class TestValidateRejectsLegacyKeys(_TempCwdBase):
+    """ver13.0: validation must reject legacy `mode:` and `command.auto_args`."""
+
+    def _write(self, content: str) -> Path:
+        path = self.tmp_dir / "wf.yaml"
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    @patch("claude_loop_lib.validation.shutil.which", return_value="/bin/claude")
+    def test_rejects_toplevel_mode_key(self, _which) -> None:
+        path = self._write(
+            "mode:\n  auto: true\n"
+            "steps:\n  - name: s\n    prompt: /foo\n"
+        )
+        violations = _validate_single_yaml(path, self.tmp_dir)
+        errs = [v for v in violations if v.severity == "error" and "mode" in v.source]
+        assert errs, f"expected mode error, got {violations}"
+        assert "removed in ver13.0" in errs[0].message
+
+    @patch("claude_loop_lib.validation.shutil.which", return_value="/bin/claude")
+    def test_rejects_command_auto_args(self, _which) -> None:
+        path = self._write(
+            "command:\n"
+            "  auto_args:\n"
+            "    - --disallowedTools \"AskUserQuestion\"\n"
+            "steps:\n  - name: s\n    prompt: /foo\n"
+        )
+        violations = _validate_single_yaml(path, self.tmp_dir)
+        errs = [v for v in violations if v.severity == "error" and "auto_args" in v.source]
+        assert errs, f"expected auto_args error, got {violations}"
+        assert "removed in ver13.0" in errs[0].message
+
+    @patch("claude_loop_lib.validation.shutil.which", return_value="/bin/claude")
+    def test_rejects_unknown_toplevel_key(self, _which) -> None:
+        path = self._write(
+            "bogus_section: hello\n"
+            "steps:\n  - name: s\n    prompt: /foo\n"
+        )
+        violations = _validate_single_yaml(path, self.tmp_dir)
+        errs = [
+            v for v in violations
+            if v.severity == "error" and "Unknown top-level keys" in v.message
+        ]
+        assert errs
+
+    @patch("claude_loop_lib.validation.shutil.which", return_value="/bin/claude")
+    def test_rejects_unknown_command_key(self, _which) -> None:
+        path = self._write(
+            "command:\n  bogus: x\n"
+            "steps:\n  - name: s\n    prompt: /foo\n"
+        )
+        violations = _validate_single_yaml(path, self.tmp_dir)
+        errs = [
+            v for v in violations
+            if v.severity == "error" and "command" in v.source and "Unknown" in v.message
+        ]
+        assert errs
 
 
 class TestValidateStartupExistingYamls(unittest.TestCase):

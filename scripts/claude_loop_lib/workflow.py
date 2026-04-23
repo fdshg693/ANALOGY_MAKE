@@ -161,27 +161,24 @@ def resolve_defaults(config: dict[str, Any]) -> dict[str, str]:
     return result
 
 
-def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str], list[str]]:
+def resolve_command_config(config: dict[str, Any]) -> tuple[str, str, list[str]]:
     command_config = config.get("command") or {}
     if not isinstance(command_config, dict):
         raise SystemExit("'command' must be a mapping when provided.")
 
+    if "auto_args" in command_config:
+        raise SystemExit(
+            "'command.auto_args' is removed in ver13.0. "
+            "Merge its values into 'command.args' instead."
+        )
+
     executable = command_config.get("executable", "claude")
     prompt_flag = command_config.get("prompt_flag", "-p")
     common_args = normalize_cli_args(command_config.get("args"), "command.args")
-    auto_args = normalize_cli_args(command_config.get("auto_args"), "command.auto_args")
 
     if not isinstance(executable, str) or not executable.strip():
         raise SystemExit("'command.executable' must be a non-empty string.")
     if not isinstance(prompt_flag, str) or not prompt_flag.strip():
         raise SystemExit("'command.prompt_flag' must be a non-empty string.")
 
-    return executable, prompt_flag, common_args, auto_args
-
-
-def resolve_mode(config: dict[str, Any], cli_auto: bool) -> bool:
-    """Determine execution mode. Returns True for auto mode."""
-    if cli_auto:
-        return True
-    mode_config = config.get("mode") or {}
-    return bool(mode_config.get("auto", False))
+    return executable, prompt_flag, common_args

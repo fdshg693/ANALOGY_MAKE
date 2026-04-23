@@ -26,7 +26,7 @@
 
 | モジュール | 内容 |
 |---|---|
-| `workflow.py` | YAML ロード・バリデーション・`get_steps` / `resolve_defaults` / `resolve_command_config` / `resolve_mode` |
+| `workflow.py` | YAML ロード・バリデーション・`get_steps` / `resolve_defaults` / `resolve_command_config` |
 | `validation.py` | 起動前 validation。`validate_startup()` を公開（詳細は下記「起動前 validation」節） |
 | `feedbacks.py` | `FEEDBACKS/` 配下の frontmatter 解析、ロード、消費（`done/` 移動） |
 | `commands.py` | `build_command`、ステップイテレータ（`iter_steps_for_loop_limit` / `iter_steps_for_step_limit`） |
@@ -70,21 +70,17 @@ python scripts/claude_loop.py --max-loops 2
 # コマンド確認のみ（実行・ログ・通知なし）
 python scripts/claude_loop.py --dry-run
 
-# 自動実行モード（対話 UI を排除）
-python scripts/claude_loop.py --auto
-
 # 事前に未コミット変更を自動コミットしてから開始
 python scripts/claude_loop.py --auto-commit-before
 ```
 
-### `--auto` と `--workflow auto` の違い
+### 無人実行モードについて
 
-| フラグ | 意味 |
-|---|---|
-| `--auto` | 無人実行モード。`command.auto_args` を結合し、AskUserQuestion を無効化 |
-| `--workflow auto` | ワークフロー自動選択。`/issue_plan` を先行実行して結果に応じて full/quick を選ぶ |
+ver13.0 で `--auto` フラグと YAML の `mode: / command.auto_args` 設定は撤去された。通常起動 (`python scripts/claude_loop.py`) が常に無人挙動を内包する（`AskUserQuestion` 無効化・unattended system prompt 注入）ため、別モードを意識する必要はない。
 
-両者は独立。併用例: `python scripts/claude_loop.py --auto --workflow auto`（無人モードでワークフロー自動選択）。
+旧 CLI `--auto` を指定した場合は argparse の `unrecognized arguments` エラーで即座に落ちる。旧 YAML の `mode:` / `command.auto_args` は起動前 validation で拒否される（エラーメッセージに「removed in ver13.0」と表示される）。
+
+`--workflow auto` は別概念（ワークフロー自動選択。`/issue_plan` を先行実行して結果に応じて full/quick を選ぶ）であり、撤去されていない。
 
 ## フル/quick の使い分け
 
@@ -111,7 +107,7 @@ python scripts/claude_loop.py --auto-commit-before
 
 ## フィードバック注入機能
 
-`FEEDBACKS/*.md` を作成すると対応するステップ実行時に `--append-system-prompt` に注入される。`step:` frontmatter でステップを絞り込み可（省略で全ステップに適用）。ステップ正常終了後に `FEEDBACKS/done/` へ移動される。詳細は [`USAGE.md`](USAGE.md) を参照。
+`FEEDBACKS/*.md` を作成すると対応するステップ実行時に `--append-system-prompt` に注入される。`step:` frontmatter でステップを絞り込み可（省略で全ステップに適用）。ステップ正常終了後に `FEEDBACKS/done/` へ移動される。異常終了（非ゼロ exit / 例外 / Ctrl-C 等）時は移動されず、`FEEDBACKS/` に残って次回 run で再消費される（retry のための温存）。なお `load_feedbacks()` は非再帰 glob で `FEEDBACKS/done/` を読まないため、done/ のファイルを再利用したい場合は `FEEDBACKS/` へ手動で戻す必要がある。詳細は [`USAGE.md`](USAGE.md) を参照。
 
 ## claude_sync.py
 

@@ -26,7 +26,12 @@ def parse_feedback_frontmatter(content: str) -> tuple[list[str] | None, str]:
 
 
 def load_feedbacks(feedbacks_dir: Path, step_name: str) -> list[tuple[Path, str]]:
-    """Load feedback files matching the given step name."""
+    """Load feedback files matching the given step name.
+
+    Uses a non-recursive glob: ``FEEDBACKS/done/`` is intentionally excluded
+    so that consumed feedback is not re-injected on subsequent runs. To
+    re-use a feedback, move its file from ``done/`` back to ``FEEDBACKS/``.
+    """
     if not feedbacks_dir.is_dir():
         return []
 
@@ -42,7 +47,13 @@ def load_feedbacks(feedbacks_dir: Path, step_name: str) -> list[tuple[Path, str]
 
 
 def consume_feedbacks(files: list[Path], done_dir: Path) -> None:
-    """Move consumed feedback files to the done directory."""
+    """Move consumed feedback files to the done directory.
+
+    The caller must invoke this only when the step has exited successfully
+    (exit_code == 0). On abnormal termination (non-zero exit / exception /
+    interrupt) the caller must **not** invoke this function, so the feedback
+    stays under ``FEEDBACKS/`` and is re-injected into the next run (retry).
+    """
     if not files:
         return
     done_dir.mkdir(parents=True, exist_ok=True)

@@ -29,6 +29,11 @@ from claude_loop_lib.workflow import (
 KNOWN_MODELS: frozenset[str] = frozenset({"opus", "sonnet", "haiku"})
 KNOWN_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high", "xhigh", "max"})
 
+ALLOWED_TOPLEVEL_KEYS: frozenset[str] = frozenset({"command", "defaults", "steps"})
+ALLOWED_COMMAND_KEYS: frozenset[str] = frozenset(
+    {"executable", "prompt_flag", "args"}
+)
+
 
 @dataclass(frozen=True)
 class Violation:
@@ -132,10 +137,31 @@ def _validate_single_yaml(yaml_path: Path, cwd: Path) -> list[Violation]:
         ))
         return violations
 
+    violations.extend(_validate_toplevel_keys(data, source_prefix))
     violations.extend(_validate_command_section(data, source_prefix))
     violations.extend(_validate_defaults_section(data, source_prefix))
     violations.extend(_validate_steps_section(data, source_prefix, cwd))
 
+    return violations
+
+
+def _validate_toplevel_keys(data: dict[str, Any], prefix: str) -> list[Violation]:
+    violations: list[Violation] = []
+    if "mode" in data:
+        violations.append(Violation(
+            f"{prefix}/mode",
+            "'mode:' is removed in ver13.0. Auto mode is now the default. "
+            "Remove the 'mode:' section from YAML.",
+            "error",
+        ))
+    unknown = set(data.keys()) - ALLOWED_TOPLEVEL_KEYS - {"mode"}
+    if unknown:
+        violations.append(Violation(
+            prefix,
+            f"Unknown top-level keys: {sorted(unknown)}. "
+            f"Allowed: {sorted(ALLOWED_TOPLEVEL_KEYS)}",
+            "error",
+        ))
     return violations
 
 
@@ -151,6 +177,21 @@ def _validate_command_section(data: dict[str, Any], prefix: str) -> list[Violati
         return violations
 
     if isinstance(command_config, dict):
+        if "auto_args" in command_config:
+            violations.append(Violation(
+                f"{prefix}/command.auto_args",
+                "'command.auto_args' is removed in ver13.0. "
+                "Merge its values into 'command.args'.",
+                "error",
+            ))
+        unknown = set(command_config.keys()) - ALLOWED_COMMAND_KEYS - {"auto_args"}
+        if unknown:
+            violations.append(Violation(
+                f"{prefix}/command",
+                f"Unknown keys: {sorted(unknown)}. "
+                f"Allowed: {sorted(ALLOWED_COMMAND_KEYS)}",
+                "error",
+            ))
         executable = command_config.get("executable", "claude")
     else:
         executable = "claude"

@@ -40,7 +40,7 @@ user-invocable: true
   - **MASTER_PLAN 全フェーズ完了時の判断ガイドライン**: `docs/{カテゴリ}/MASTER_PLAN/` 配下の全 PHASE が「実装済み」の場合、以下の優先順で方針を選択する:
     1. **既存 ISSUES の消化を優先**: `status: ready / ai` の ISSUE が 1 件以上あり、小粒対応で区切れる場合は、新 PHASE の骨子作成は行わず、ROUGH_PLAN のスコープを既存 ISSUE に限定する（`source: issues`）
     2. **新 PHASE の骨子作成を ROUGH_PLAN スコープに含める**: 既存 ISSUES が尽きている or 既存 ISSUES だけでは扱えないテーマが明確な場合のみ、新 `PHASE{N+1}.md` 骨子作成を ROUGH_PLAN のタスクとして取り上げる（`source: master_plan`）。この場合は必ず `workflow: full`
-    3. **ユーザーに方向性を確認**: 上記で決め切れない場合は、AUTO モード下では `REQUESTS/AI/` に方向性確認のリクエストを書き出した上で、暫定的に既存 ISSUES 消化に倒す
+    3. **ユーザーに方向性を確認**: 上記で決め切れない場合は、AUTO モード下では `ISSUES/{カテゴリ}/medium/direction-check-ver{X.Y}.md` を作成（frontmatter: `status: need_human_action` / `assigned: human`）した上で、暫定的に既存 ISSUES 消化に倒す
 
 ## バージョン種別の判定
 

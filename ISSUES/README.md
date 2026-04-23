@@ -3,6 +3,15 @@
 このディレクトリは、アプリ本体・インフラ・CI/CD・ユーティリティ横断で発生した課題（バグ・改善要望・調査メモ）を保管する場所です。
 plan ステップ（`/issue_plan`）は、ここに置かれた ISSUE のうち **「着手可能」と判定されたもの** だけを拾い上げて実装計画に取り込みます。そのための成熟度ラベルとしてフロントマターを使います。
 
+## REQUESTS からの移行経緯（ver13.0）
+
+ver12.x 以前は `REQUESTS/AI/` / `REQUESTS/HUMAN/` ディレクトリで「ワークフローから人間への依頼」や「人間から AI への依頼」を扱っていましたが、ver13.0 で本ディレクトリに集約しました。
+
+- **AI から人間への依頼**（旧 `REQUESTS/AI/`） → `ISSUES/{カテゴリ}/{優先度}/*.md` を新規作成し、frontmatter に `assigned: human` / `status: need_human_action` を指定する
+- **人間から AI への依頼**（旧 `REQUESTS/HUMAN/`） → 従来通り frontmatter に `assigned: ai` / `status: ready` を付与する（`raw` で書き始めて `review` → `ready` と成熟させる運用も同じ）
+
+これにより「依頼の置き場所」が ISSUES 1 系統に統一され、`issue_status.py` / `issue_worklist.py` で担当別に一覧できるようになります。
+
 ## ディレクトリ構造
 
 ```

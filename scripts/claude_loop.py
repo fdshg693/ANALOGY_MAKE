@@ -17,7 +17,7 @@ from typing import Any
 
 from claude_loop_lib.workflow import (
     load_workflow, get_steps, resolve_defaults,
-    resolve_command_config, resolve_mode,
+    resolve_command_config,
     resolve_workflow_value,
     FULL_YAML_FILENAME, QUICK_YAML_FILENAME, ISSUE_PLAN_YAML_FILENAME,
 )
@@ -49,7 +49,8 @@ def positive_int(value: str) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run a Claude workflow defined in YAML."
+        description="Run a Claude workflow defined in YAML.",
+        allow_abbrev=False,
     )
     parser.add_argument(
         "-w",
@@ -96,11 +97,6 @@ def parse_args() -> argparse.Namespace:
         "--auto-commit-before",
         action="store_true",
         help="Automatically commit uncommitted changes before starting the workflow",
-    )
-    parser.add_argument(
-        "--auto",
-        action="store_true",
-        help="Force auto (unattended) execution mode",
     )
     loop_group = parser.add_mutually_exclusive_group()
     loop_group.add_argument(
@@ -246,11 +242,8 @@ def _execute_yaml(
             f"(steps: {len(steps)})."
         )
 
-    executable, prompt_flag, common_args, auto_args = resolve_command_config(config)
+    executable, prompt_flag, common_args = resolve_command_config(config)
     defaults = resolve_defaults(config)
-    auto_mode = resolve_mode(config, args.auto)
-    if auto_mode:
-        common_args = common_args + auto_args
     if shutil.which(executable) is None:
         raise SystemExit(f"Command not found: {executable}")
 
@@ -266,7 +259,7 @@ def _execute_yaml(
 
     return _run_steps(
         step_iter, steps, executable, prompt_flag, common_args,
-        cwd, args.dry_run, tee, log_path, auto_mode,
+        cwd, args.dry_run, tee, log_path,
         uncommitted_status, defaults,
         continue_disabled=continue_disabled,
     )
@@ -401,7 +394,6 @@ def _run_steps(
     dry_run: bool,
     tee: TeeWriter | None,
     log_path: Path | None,
-    auto_mode: bool = False,
     uncommitted_status: str | None = None,
     defaults: dict[str, str] | None = None,
     continue_disabled: bool = False,
@@ -476,7 +468,7 @@ def _run_steps(
             resume = False
 
         command = build_command(
-            executable, prompt_flag, common_args, step, log_file_path, auto_mode,
+            executable, prompt_flag, common_args, step, log_file_path,
             feedbacks=feedback_contents or None, defaults=defaults,
             session_id=session_id, resume=resume,
         )

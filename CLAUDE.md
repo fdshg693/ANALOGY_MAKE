@@ -31,8 +31,7 @@
 - `scripts/` — Python 自動化スクリプト（`claude_loop.py` + `claude_loop_lib/` パッケージ、詳細は `scripts/README.md`）
 - `experiments/` — 実験スクリプト（tsx で実行）
 - `.github/workflows/` — CI/CD（GitHub Actions）
-- `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）。`ISSUES/README.md` にフロントマター仕様（`status` / `assigned` / `reviewed_at`）を定義。`python scripts/issue_status.py` で分布確認、`python scripts/issue_worklist.py` で AI 向け着手候補を一覧取得
-- `REQUESTS/` — 機能リクエスト（分類別: `workflow/` 等）
+- `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）。`ISSUES/README.md` にフロントマター仕様（`status` / `assigned` / `reviewed_at`）を定義。`python scripts/issue_status.py` で分布確認、`python scripts/issue_worklist.py` で AI 向け着手候補を一覧取得。人間への依頼は `assigned: human` / `status: need_human_action` を付けて同ディレクトリに集約する（ver13.0 で `REQUESTS/AI` `REQUESTS/HUMAN` を廃止）
 - `FEEDBACKS/` — ワークフローへのユーザーフィードバック（YAML frontmatter で対象ステップ指定、消費後 `done/` へ移動）
 - `infra/` — Azure インフラ定義（Bicep テンプレート）
 - `Justfile` — Azure CLI 運用コマンド（ログ確認・再起動・SSH 等）+ インフラ管理コマンド（デプロイ・プレビュー・削除）

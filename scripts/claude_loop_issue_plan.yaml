@@ -1,35 +1,15 @@
 # NOTE: 1-step YAML for running /issue_plan alone. Also used as phase 1 of --workflow auto.
-#       The `command` / `mode` / `defaults` sections must stay in sync with claude_loop.yaml
+#       The `command` / `defaults` sections must stay in sync with claude_loop.yaml
 #       and claude_loop_quick.yaml.
 #       Allowed `defaults`/`steps[]` override keys (string-typed):
 #         model, effort, system_prompt, append_system_prompt
-
-mode:
-  auto: true
 
 command:
   executable: claude
   prompt_flag: -p
   args:
     - --dangerously-skip-permissions
-  auto_args:
     - --disallowedTools "AskUserQuestion"
-    - >-
-      --append-system-prompt "you cannot ask questions to the user. so,
-      whenever you think you should get human feedback, just write a file under
-      `REQUESTS/AI` folder. Human will see this after you finish this step.
-      (**So you cannot directly ask nor get human feedback in this session.**)
-
-      ## Editing files under .claude/
-
-      Files under `.claude/` cannot be directly edited in CLI `-p` mode (security restriction).
-      To edit files in `.claude/`, use `scripts/claude_sync.py` with the following steps:
-
-      1. `python scripts/claude_sync.py export` — Copy `.claude/` to `.claude_sync/`
-      2. Edit the corresponding files in `.claude_sync/` (this directory is writable)
-      3. `python scripts/claude_sync.py import` — Write back `.claude_sync/` contents to `.claude/`
-
-      **Note**: Run export/import via the Bash tool with `python scripts/claude_sync.py <command>`."
 
 defaults:
   model: sonnet

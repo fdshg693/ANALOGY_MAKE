@@ -10,7 +10,7 @@ from . import _bootstrap  # noqa: F401  — must precede claude_loop_lib imports
 from claude_loop_lib.commands import build_command
 from claude_loop_lib.workflow import (
     load_workflow, get_steps, resolve_defaults,
-    resolve_command_config, resolve_mode,
+    resolve_command_config,
     resolve_workflow_value,
     FULL_YAML_FILENAME, QUICK_YAML_FILENAME, ISSUE_PLAN_YAML_FILENAME,
     OVERRIDE_STRING_KEYS,
@@ -20,31 +20,21 @@ from claude_loop_lib.workflow import (
 _UNSET = object()
 
 
-class TestResolveMode(unittest.TestCase):
-    """Tests for resolve_mode()."""
+class TestResolveCommandConfigRejectsAutoArgs(unittest.TestCase):
+    """ver13.0: command.auto_args is removed and must be rejected."""
 
-    def test_default_is_not_auto(self) -> None:
-        assert resolve_mode({}, cli_auto=False) is False
-
-    def test_yaml_auto_true(self) -> None:
-        assert resolve_mode({"mode": {"auto": True}}, cli_auto=False) is True
-
-    def test_cli_auto_overrides_yaml(self) -> None:
-        assert resolve_mode({"mode": {"auto": False}}, cli_auto=True) is True
-
-
-class TestResolveCommandConfigAutoArgs(unittest.TestCase):
-    """Tests for auto_args in resolve_command_config()."""
-
-    def test_returns_auto_args(self) -> None:
+    def test_rejects_auto_args_key(self) -> None:
         config = {"command": {"auto_args": ["--disallowedTools AskUserQuestion"]}}
-        _, _, _, auto_args = resolve_command_config(config)
-        assert "--disallowedTools" in auto_args
+        with self.assertRaises(SystemExit) as cm:
+            resolve_command_config(config)
+        assert "auto_args" in str(cm.exception)
 
-    def test_empty_auto_args_default(self) -> None:
-        config = {"command": {}}
-        _, _, _, auto_args = resolve_command_config(config)
-        assert auto_args == []
+    def test_accepts_command_without_auto_args(self) -> None:
+        config = {"command": {"args": ["--flag"]}}
+        executable, prompt_flag, common_args = resolve_command_config(config)
+        assert executable == "claude"
+        assert prompt_flag == "-p"
+        assert common_args == ["--flag"]
 
 
 class TestResolveDefaults(unittest.TestCase):
@@ -332,35 +322,52 @@ class TestOverrideInheritanceMatrix(unittest.TestCase):
             return None
         return cmd[cmd.index(flag) + 1]
 
+    def _assert_contains(self, key: str, value: str | None, expected: str) -> None:
+        # ver13.0: --append-system-prompt is always emitted because the
+        # unattended system prompt is injected unconditionally. The effective
+        # override value is concatenated to the tail, so we check containment
+        # rather than equality for that key.
+        if key == "append_system_prompt":
+            assert value is not None and expected in value
+        else:
+            assert value == expected
+
     def test_step_value_wins_when_both_set(self) -> None:
         for key in OVERRIDE_STRING_KEYS:
             with self.subTest(key=key):
                 cmd = self._build(key, "STEP", "DEFAULT")
                 value = self._flag_value(cmd, self._FLAGS[key])
+                self._assert_contains(key, value, "STEP")
                 if key == "append_system_prompt":
-                    assert value == "STEP"
-                else:
-                    assert value == "STEP"
+                    assert "DEFAULT" not in (value or "")
 
     def test_step_value_used_when_defaults_absent(self) -> None:
         for key in OVERRIDE_STRING_KEYS:
             with self.subTest(key=key):
                 cmd = self._build(key, "STEP", _UNSET)
                 value = self._flag_value(cmd, self._FLAGS[key])
-                assert value == "STEP"
+                self._assert_contains(key, value, "STEP")
 
     def test_defaults_used_when_step_absent(self) -> None:
         for key in OVERRIDE_STRING_KEYS:
             with self.subTest(key=key):
                 cmd = self._build(key, _UNSET, "DEFAULT")
                 value = self._flag_value(cmd, self._FLAGS[key])
-                assert value == "DEFAULT"
+                self._assert_contains(key, value, "DEFAULT")
 
     def test_flag_omitted_when_neither_set(self) -> None:
         for key in OVERRIDE_STRING_KEYS:
             with self.subTest(key=key):
                 cmd = self._build(key, _UNSET, _UNSET)
-                assert self._FLAGS[key] not in cmd
+                if key == "append_system_prompt":
+                    # ver13.0: unattended prompt is always injected via
+                    # --append-system-prompt. The flag is still present; we
+                    # only assert the override value didn't leak into it.
+                    value = self._flag_value(cmd, self._FLAGS[key])
+                    assert value is not None
+                    assert "DEFAULT" not in value and "STEP" not in value
+                else:
+                    assert self._FLAGS[key] not in cmd
 
     def test_step_none_falls_back_to_defaults(self) -> None:
         # Note: step entries are produced by get_steps() which strips None
@@ -371,7 +378,7 @@ class TestOverrideInheritanceMatrix(unittest.TestCase):
             with self.subTest(key=key):
                 cmd = self._build(key, _UNSET, "DEFAULT")
                 value = self._flag_value(cmd, self._FLAGS[key])
-                assert value == "DEFAULT"
+                self._assert_contains(key, value, "DEFAULT")
 
 
 if __name__ == "__main__":

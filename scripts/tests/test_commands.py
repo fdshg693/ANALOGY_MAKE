@@ -18,7 +18,12 @@ class TestBuildCommandWithLogFilePath(unittest.TestCase):
     def test_without_log_file_path(self) -> None:
         cmd = build_command("claude", "-p", [], self._make_step(), log_file_path=None)
 
-        assert "--append-system-prompt" not in cmd
+        # ver13.0: unattended prompt is always injected, even without log path.
+        assert "--append-system-prompt" in cmd
+        idx = cmd.index("--append-system-prompt")
+        prompt_value = cmd[idx + 1]
+        assert "unattended" in prompt_value
+        assert "Current workflow log:" not in prompt_value
 
     def test_with_log_file_path_adds_system_prompt_arg(self) -> None:
         log_path = "/logs/workflow/20260404_120000_test.log"
@@ -43,31 +48,42 @@ class TestBuildCommandWithLogFilePath(unittest.TestCase):
         assert cmd[6] == "--append-system-prompt"
         assert f"Current workflow log: {log_path}" in cmd[7]
 
-    def test_empty_string_log_file_path_does_not_add_args(self) -> None:
+    def test_empty_string_log_file_path_omits_log_line_but_still_injects_unattended(
+        self,
+    ) -> None:
         cmd = build_command("claude", "-p", [], self._make_step(), log_file_path="")
 
-        assert "--append-system-prompt" not in cmd
+        # ver13.0: empty log path skips the log line, but unattended prompt still fires.
+        assert "--append-system-prompt" in cmd
+        idx = cmd.index("--append-system-prompt")
+        prompt_value = cmd[idx + 1]
+        assert "Current workflow log:" not in prompt_value
+        assert "unattended" in prompt_value
 
 
-class TestBuildCommandWithMode(unittest.TestCase):
-    """Tests for build_command() with auto_mode parameter."""
+class TestBuildCommandAlwaysInjectsUnattendedPrompt(unittest.TestCase):
+    """ver13.0: build_command() always injects the unattended system prompt."""
 
     def _make_step(self) -> dict:
         return {"name": "test", "prompt": "/test", "args": []}
 
-    def test_auto_mode_includes_auto_prompt(self) -> None:
-        cmd = build_command("claude", "-p", [], self._make_step(), auto_mode=True)
+    def test_minimal_case_includes_unattended_prompt(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step())
         assert "--append-system-prompt" in cmd
         idx = cmd.index("--append-system-prompt")
-        assert "AUTO" in cmd[idx + 1]
+        prompt_value = cmd[idx + 1]
+        assert "unattended" in prompt_value
 
-    def test_non_auto_mode_has_no_mode_prompt(self) -> None:
-        cmd = build_command("claude", "-p", [], self._make_step(), auto_mode=False)
-        assert "--append-system-prompt" not in cmd
+    def test_minimal_case_does_not_include_old_auto_wording(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step())
+        idx = cmd.index("--append-system-prompt")
+        prompt_value = cmd[idx + 1]
+        assert "AUTO (unattended)" not in prompt_value
 
-    def test_log_and_mode_combined_in_single_prompt(self) -> None:
-        cmd = build_command("claude", "-p", [], self._make_step(),
-                           log_file_path="/log.log", auto_mode=True)
+    def test_log_and_unattended_combined_in_single_prompt(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(), log_file_path="/log.log",
+        )
         assert cmd.count("--append-system-prompt") == 1
 
 
@@ -101,7 +117,11 @@ class TestBuildCommandWithFeedbacks(unittest.TestCase):
 
     def test_no_feedbacks(self) -> None:
         cmd = self._build(feedbacks=None)
-        assert "--append-system-prompt" not in cmd
+        # ver13.0: unattended prompt is always injected, so --append-system-prompt
+        # is always emitted. Only the feedback section should be absent.
+        assert "--append-system-prompt" in cmd
+        idx = cmd.index("--append-system-prompt")
+        assert "## User Feedback" not in cmd[idx + 1]
 
 
 class TestBuildCommandWithModelEffort(unittest.TestCase):
@@ -252,7 +272,10 @@ class TestBuildCommandWithAppendSystemPrompt(unittest.TestCase):
             defaults={},
         )
         assert "--append-system-prompt" in cmd
-        assert self._asp_value(cmd) == "my-append"
+        # ver13.0: unattended prompt is always injected; step append follows it.
+        value = self._asp_value(cmd)
+        assert "my-append" in value
+        assert "unattended" in value
 
     def test_appends_after_log_path(self) -> None:
         cmd = build_command(
@@ -264,13 +287,12 @@ class TestBuildCommandWithAppendSystemPrompt(unittest.TestCase):
         append_pos = value.index("my-append")
         assert log_pos < append_pos
 
-    def test_appends_after_auto_mode(self) -> None:
+    def test_appends_after_unattended_prompt(self) -> None:
         cmd = build_command(
             "claude", "-p", [], self._make_step(append_system_prompt="my-append"),
-            auto_mode=True,
         )
         value = self._asp_value(cmd)
-        auto_pos = value.index("AUTO (unattended)")
+        auto_pos = value.index("unattended")
         append_pos = value.index("my-append")
         assert auto_pos < append_pos
 
@@ -288,12 +310,11 @@ class TestBuildCommandWithAppendSystemPrompt(unittest.TestCase):
         cmd = build_command(
             "claude", "-p", [], self._make_step(append_system_prompt="my-append"),
             log_file_path="/log.log",
-            auto_mode=True,
             feedbacks=["fbtext"],
         )
         value = self._asp_value(cmd)
         log_pos = value.index("Current workflow log:")
-        auto_pos = value.index("AUTO (unattended)")
+        auto_pos = value.index("unattended")
         fb_pos = value.index("## User Feedback")
         append_pos = value.index("my-append")
         assert log_pos < auto_pos < fb_pos < append_pos
@@ -303,16 +324,17 @@ class TestBuildCommandWithAppendSystemPrompt(unittest.TestCase):
             "claude", "-p", [], self._make_step(),
             defaults={"append_system_prompt": "default-append"},
         )
-        assert self._asp_value(cmd) == "default-append"
+        value = self._asp_value(cmd)
+        assert "default-append" in value
 
     def test_step_overrides_defaults_append(self) -> None:
         cmd = build_command(
-            "claude", "-p", [], self._make_step(append_system_prompt="B"),
-            defaults={"append_system_prompt": "A"},
+            "claude", "-p", [], self._make_step(append_system_prompt="STEP_VAL"),
+            defaults={"append_system_prompt": "DEFAULT_VAL"},
         )
         value = self._asp_value(cmd)
-        assert value == "B"
-        assert "A" not in value
+        assert "STEP_VAL" in value
+        assert "DEFAULT_VAL" not in value
 
 
 if __name__ == "__main__":

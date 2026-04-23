@@ -11,7 +11,6 @@ def build_command(
     common_args: list[str],
     step: dict[str, Any],
     log_file_path: str | None = None,
-    auto_mode: bool = False,
     feedbacks: list[str] | None = None,
     defaults: dict[str, str] | None = None,
     session_id: str | None = None,
@@ -35,11 +34,12 @@ def build_command(
     system_prompts: list[str] = []
     if log_file_path:
         system_prompts.append(f"Current workflow log: {log_file_path}")
-    if auto_mode:
-        system_prompts.append(
-            "Workflow execution mode: AUTO (unattended). "
-            "Do not use AskUserQuestion. Write requests to REQUESTS/AI/ instead."
-        )
+    system_prompts.append(
+        "Workflow execution mode: unattended. Do not use AskUserQuestion. "
+        "If human input is required, stop and write an ISSUE under "
+        "ISSUES/{category}/{priority}/ with frontmatter "
+        "`status: need_human_action` / `assigned: human`."
+    )
     if feedbacks:
         feedback_section = "## User Feedback\n\n" + "\n\n---\n\n".join(feedbacks)
         system_prompts.append(feedback_section)

@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 
 # Add the scripts directory to sys.path so we can import claude_loop
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from claude_loop import parse_args
+from claude_loop import parse_args, _run_steps
 from claude_loop_lib.workflow import (
     load_workflow, get_steps, resolve_defaults,
     resolve_command_config, resolve_mode,
@@ -744,6 +744,183 @@ class TestYamlIntegration(unittest.TestCase):
         light_cmd = build_command("claude", "-p", [], steps[1], defaults=defaults)
         assert light_cmd[light_cmd.index("--model") + 1] == "sonnet"
         assert light_cmd[light_cmd.index("--effort") + 1] == "low"
+
+
+class TestBuildCommandWithSession(unittest.TestCase):
+    """Tests for build_command() with session_id / resume parameters."""
+
+    def _make_step(self) -> dict:
+        return {"name": "test", "prompt": "/test", "args": []}
+
+    def test_without_session_id_no_flag(self) -> None:
+        cmd = build_command("claude", "-p", [], self._make_step(), session_id=None)
+        assert "--session-id" not in cmd
+        assert "-r" not in cmd
+
+    def test_session_id_adds_session_id_flag(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            session_id="abc-123", resume=False,
+        )
+        assert "--session-id" in cmd
+        assert cmd[cmd.index("--session-id") + 1] == "abc-123"
+        assert "-r" not in cmd
+
+    def test_session_id_with_resume_adds_r_flag(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            session_id="abc-123", resume=True,
+        )
+        assert "-r" in cmd
+        assert cmd[cmd.index("-r") + 1] == "abc-123"
+        assert "--session-id" not in cmd
+
+    def test_session_id_after_model_before_system_prompt(self) -> None:
+        cmd = build_command(
+            "claude", "-p", [], self._make_step(),
+            log_file_path="/log.log",
+            defaults={"model": "opus"},
+            session_id="xyz", resume=False,
+        )
+        model_idx = cmd.index("--model")
+        sid_idx = cmd.index("--session-id")
+        asp_idx = cmd.index("--append-system-prompt")
+        assert model_idx < sid_idx < asp_idx
+
+
+class TestGetStepsContinue(unittest.TestCase):
+    """Tests for get_steps() with the 'continue' field."""
+
+    def _config(self, step: dict) -> dict:
+        return {"steps": [step]}
+
+    def test_omitted_continue_not_in_step_entry(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s"}))
+        assert "continue" not in steps[0]
+
+    def test_explicit_false_is_retained(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s", "continue": False}))
+        assert steps[0]["continue"] is False
+
+    def test_explicit_true_is_retained(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s", "continue": True}))
+        assert steps[0]["continue"] is True
+
+    def test_non_bool_string_raises(self) -> None:
+        with self.assertRaises(SystemExit):
+            get_steps(self._config({"name": "s", "prompt": "/s", "continue": "yes"}))
+
+    def test_integer_raises(self) -> None:
+        with self.assertRaises(SystemExit):
+            get_steps(self._config({"name": "s", "prompt": "/s", "continue": 1}))
+
+    def test_none_treated_as_absent(self) -> None:
+        steps = get_steps(self._config({"name": "s", "prompt": "/s", "continue": None}))
+        assert "continue" not in steps[0]
+
+
+class TestRunStepsSessionTracking(unittest.TestCase):
+    """Integration tests for _run_steps() session-id tracking."""
+
+    def _make_steps(self, *step_configs: dict) -> list[dict]:
+        result = []
+        for i, conf in enumerate(step_configs, start=1):
+            step = {"name": f"s{i}", "prompt": f"/s{i}", "args": []}
+            step.update(conf)
+            result.append(step)
+        return result
+
+    def _captured_commands(self, mock_run: MagicMock) -> list[list[str]]:
+        # Filter out git invocations (get_head_commit) and keep only claude commands
+        return [
+            call.args[0] for call in mock_run.call_args_list
+            if call.args and call.args[0] and call.args[0][0] != "git"
+        ]
+
+    @patch("claude_loop.uuid.uuid4")
+    @patch("claude_loop.subprocess.run")
+    def test_first_step_uses_new_session_id(
+        self, mock_run: MagicMock, mock_uuid: MagicMock
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_uuid.side_effect = ["uuid-1", "uuid-2"]
+        steps = self._make_steps({}, {})
+        step_iter = iter([(steps[0], 1), (steps[1], 2)])
+
+        exit_code = _run_steps(
+            step_iter, steps, "claude", "-p", [],
+            cwd=Path("."), dry_run=False, tee=None, log_path=None,
+        )
+        assert exit_code == 0
+        commands = self._captured_commands(mock_run)
+        assert "--session-id" in commands[0]
+        assert commands[0][commands[0].index("--session-id") + 1] == "uuid-1"
+        assert "-r" not in commands[0]
+
+    @patch("claude_loop.uuid.uuid4")
+    @patch("claude_loop.subprocess.run")
+    def test_continue_step_resumes_previous_session(
+        self, mock_run: MagicMock, mock_uuid: MagicMock
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_uuid.side_effect = ["uuid-1", "uuid-2"]
+        steps = self._make_steps({}, {"continue": True})
+        step_iter = iter([(steps[0], 1), (steps[1], 2)])
+
+        _run_steps(
+            step_iter, steps, "claude", "-p", [],
+            cwd=Path("."), dry_run=False, tee=None, log_path=None,
+        )
+        commands = self._captured_commands(mock_run)
+        assert "-r" in commands[1]
+        assert commands[1][commands[1].index("-r") + 1] == "uuid-1"
+        assert "--session-id" not in commands[1]
+
+    @patch("claude_loop.uuid.uuid4")
+    @patch("claude_loop.subprocess.run")
+    def test_loop_boundary_warns_when_first_step_continues(
+        self, mock_run: MagicMock, mock_uuid: MagicMock
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_uuid.side_effect = ["uuid-1"]
+        steps = self._make_steps({"continue": True})
+        step_iter = iter([(steps[0], 1)])
+
+        with patch("builtins.print") as mock_print:
+            _run_steps(
+                step_iter, steps, "claude", "-p", [],
+                cwd=Path("."), dry_run=False, tee=None, log_path=None,
+            )
+        printed = " ".join(str(c.args[0]) for c in mock_print.call_args_list if c.args)
+        assert "WARNING" in printed
+        assert "no previous session" in printed
+        commands = self._captured_commands(mock_run)
+        assert "--session-id" in commands[0]
+        assert "-r" not in commands[0]
+
+    @patch("claude_loop.uuid.uuid4")
+    @patch("claude_loop.subprocess.run")
+    def test_start_greater_than_one_disables_continue(
+        self, mock_run: MagicMock, mock_uuid: MagicMock
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_uuid.side_effect = ["uuid-1", "uuid-2"]
+        steps = self._make_steps({"continue": True}, {"continue": True})
+        step_iter = iter([(steps[0], 1), (steps[1], 2)])
+
+        with patch("builtins.print") as mock_print:
+            _run_steps(
+                step_iter, steps, "claude", "-p", [],
+                cwd=Path("."), dry_run=False, tee=None, log_path=None,
+                continue_disabled=True,
+            )
+        printed = " ".join(str(c.args[0]) for c in mock_print.call_args_list if c.args)
+        # warning printed exactly once
+        assert printed.count("--start > 1") == 1
+        commands = self._captured_commands(mock_run)
+        for cmd in commands:
+            assert "-r" not in cmd
+            assert "--session-id" in cmd
 
 
 if __name__ == "__main__":

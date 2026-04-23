@@ -77,6 +77,11 @@ def get_steps(config: dict[str, Any]) -> list[dict[str, Any]]:
                 if not isinstance(value, str) or not value.strip():
                     raise SystemExit(f"steps[{index}].{key} must be a non-empty string.")
                 step_entry[key] = value
+        if "continue" in raw_step and raw_step["continue"] is not None:
+            value = raw_step["continue"]
+            if not isinstance(value, bool):
+                raise SystemExit(f"steps[{index}].continue must be a boolean.")
+            step_entry["continue"] = value
         steps.append(step_entry)
 
     return steps

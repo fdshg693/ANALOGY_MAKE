@@ -14,6 +14,8 @@ def build_command(
     auto_mode: bool = False,
     feedbacks: list[str] | None = None,
     defaults: dict[str, str] | None = None,
+    session_id: str | None = None,
+    resume: bool = False,
 ) -> list[str]:
     cmd = [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
     defaults = defaults or {}
@@ -21,6 +23,11 @@ def build_command(
         value = step.get(key, defaults.get(key))
         if value is not None:
             cmd.extend([flag, value])
+    if session_id is not None:
+        if resume:
+            cmd.extend(["-r", session_id])
+        else:
+            cmd.extend(["--session-id", session_id])
     system_prompts: list[str] = []
     if log_file_path:
         system_prompts.append(f"Current workflow log: {log_file_path}")

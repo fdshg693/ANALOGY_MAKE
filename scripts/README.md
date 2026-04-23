@@ -104,6 +104,7 @@ steps:
     prompt: /skill_name
     model: opus                # 省略可。step 側にキーが存在しない場合に defaults を継承
     effort: high               # 同上
+    continue: true             # 省略可。直前ステップのセッションを引き継いで実行
     args:                      # 省略可。追加の CLI 引数（文字列 or リスト、shlex で分解）
       - --some-flag
 ```
@@ -114,6 +115,18 @@ steps:
 - **command.executable / prompt_flag / args / auto_args**: Claude 実行コマンドの構築素材。`args` は全モード共通、`auto_args` は auto モード時のみ追加
 - **defaults.model / effort**: 全ステップに適用する共通値。各ステップでキーが存在しない場合のみ参照される（**キー存在ベース**の上書き）
 - **steps[].model / effort**: ステップ固有の上書き。`None` は「未指定」として扱い defaults を継承。空文字列はエラー
+- **steps[].continue**: `true` なら直前ステップで使用した session ID を `-r <uuid>` で再利用し、前ステップの会話履歴を引き継いで実行する。`false` または省略時は新規 session ID（`uuid.uuid4()` で発行）を `--session-id <uuid>` で起動する。bool 以外（文字列・整数等）はエラー
+
+### `continue` の使い分け
+
+- **継続したいケース**: 前ステップの判断経緯（ツール使用結果やトレードオフの検討）を引き継ぎたい整理系ステップ。例: `imple_plan`（split_plan の判断を踏まえる）、`wrap_up`（実装ステップの判断を踏まえる）、`quick_impl` / `quick_doc`
+- **新規セッションが望ましいケース**: 別視点で書き起こす整理系ステップ。例: `write_current`（現況を新規視点で整理）、`retrospective`（独立したフレーミングで振り返る）、`split_plan` / `quick_plan`（ワークフロー先頭）
+
+### `continue` のエッジケース
+
+- **`--start > 1`**: ワークフロー全体で `continue: true` が無効化される（前ステップ実行が無いため文脈が再現できない）。1 度だけ `WARNING: --start > 1` ログを出力する
+- **ループ初回ステップ**: 1 ループ目の最初のステップに `continue: true` を指定した場合、前セッションが存在しないため `WARNING: ... no previous session exists` を 1 度出力し、新規セッションで起動する。複数ループ実行時の 2 ループ目以降の冒頭が `continue: true` のときも同様（前ループ最終ステップのセッション ID は引き継がれない）
+- **`--dry-run`**: 実セッションは作成しないが、コードパスの単純化のため毎回ランダムな UUID を `uuid.uuid4()` で生成して表示する
 
 ### サンプル YAML
 
@@ -173,7 +186,7 @@ Uncommitted: {status}                ← 未コミット変更がある場合の
 
 [1/N] {step_name}
 Started: {timestamp}
-Model: {model}, Effort: {effort}     ← 未指定の側は省略、両方未指定なら行ごと省略
+Model: {model}, Effort: {effort}, Continue: {bool}, Session: {uuid8}
 $ {command}
 --- stdout/stderr ---
 （出力内容）
@@ -185,8 +198,16 @@ Finished: {timestamp}
 Commit (end): {hash}
 Duration: {total_duration}
 Result: SUCCESS (N/N steps completed)
+Last session (full): {full_uuid}     ← 末尾ステップの完全な session ID
 =====================================
 ```
+
+descriptor 行（Model / Effort / Continue / Session）の表示ルール:
+
+- `Model:` / `Effort:` は値が未指定の側を省略、両方未指定なら descriptor 全体が `Session:` のみになる
+- `Continue:` は `continue: true` を YAML で明示したステップにのみ表示。実際に継続が無効化された場合（`--start > 1` やループ境界）は `Continue: False` と表示される
+- **既知の非対称性**: `continue: false` を明示したステップと `continue` を省略したステップは descriptor 上区別できない（どちらも `Continue:` 行が出ない）。トラブルシュート時は YAML を併読すること
+- `Session:` は常に表示（先頭 8 文字）。完全な UUID はワークフローフッターの `Last session (full):` に出力されるので、`claude -r <uuid>` で手動再開する場合はそちらを参照
 
 コマンドログは `shlex.join(command)` で出力されるため、スペース・特殊文字を含む引数は自動でシェルクォートされる。
 
@@ -217,7 +238,7 @@ python scripts/claude_sync.py import
 python -m unittest tests.test_claude_loop
 ```
 
-現状 89 件。`tests/test_claude_loop.py` は `claude_loop_lib.*` のパッチターゲットを使って個別モジュールをモックしている。
+現状 103 件。`tests/test_claude_loop.py` は `claude_loop_lib.*` のパッチターゲットを使って個別モジュールをモックしている。`_run_steps` の session 引き継ぎ統合テストは `claude_loop.subprocess.run` / `claude_loop.uuid.uuid4` をパッチして検証する。
 
 ## 関連ドキュメント
 

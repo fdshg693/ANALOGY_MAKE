@@ -36,7 +36,9 @@ steps:
   - name: quick_impl
     prompt: /quick_impl
     effort: high
+    continue: true
 
   - name: quick_doc
     prompt: /quick_doc
     effort: low
+    continue: true

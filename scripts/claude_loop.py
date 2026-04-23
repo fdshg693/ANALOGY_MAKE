@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -157,6 +158,7 @@ def main() -> int:
         step_iter = iter_steps_for_loop_limit(steps, args.start - 1, args.max_loops)
 
     enable_log = not args.no_log and not args.dry_run
+    continue_disabled = args.start > 1
 
     workflow_start = time.monotonic()
 
@@ -168,12 +170,14 @@ def main() -> int:
                 step_iter, steps, executable, prompt_flag, common_args,
                 cwd, args.dry_run, tee, log_path, auto_mode,
                 uncommitted_status, defaults,
+                continue_disabled=continue_disabled,
             )
     else:
         exit_code = _run_steps(
             step_iter, steps, executable, prompt_flag, common_args,
             cwd, args.dry_run, None, None, auto_mode,
             uncommitted_status, defaults,
+            continue_disabled=continue_disabled,
         )
 
     total_duration = time.monotonic() - workflow_start
@@ -201,6 +205,7 @@ def _run_steps(
     auto_mode: bool = False,
     uncommitted_status: str | None = None,
     defaults: dict[str, str] | None = None,
+    continue_disabled: bool = False,
 ) -> int:
     """Execute workflow steps with optional logging via TeeWriter."""
     total_steps = len(steps)
@@ -209,6 +214,9 @@ def _run_steps(
     start_commit = get_head_commit(cwd)
     completed_count = 0
     feedbacks_dir = cwd / "FEEDBACKS"
+    previous_session_id: str | None = None
+    continue_warned = False
+    loop_boundary_warned = False
 
     def _out(line: str) -> None:
         if tee is not None:
@@ -239,9 +247,39 @@ def _run_steps(
         feedback_files = [path for path, _ in matched]
 
         log_file_path = str(log_path) if tee is not None else None
+
+        requested_continue = bool(step.get("continue", False))
+        effective_continue = requested_continue
+
+        if requested_continue and continue_disabled:
+            if not continue_warned:
+                _out(
+                    "WARNING: --start > 1 detected; "
+                    "disabling 'continue: true' for all steps in this run."
+                )
+                continue_warned = True
+            effective_continue = False
+
+        if effective_continue and previous_session_id is None:
+            if not loop_boundary_warned:
+                _out(
+                    f"WARNING: step '{step['name']}' requests continue:true "
+                    f"but no previous session exists; starting new session."
+                )
+                loop_boundary_warned = True
+            effective_continue = False
+
+        if effective_continue:
+            session_id = previous_session_id
+            resume = True
+        else:
+            session_id = str(uuid.uuid4())
+            resume = False
+
         command = build_command(
             executable, prompt_flag, common_args, step, log_file_path, auto_mode,
             feedbacks=feedback_contents or None, defaults=defaults,
+            session_id=session_id, resume=resume,
         )
         command_str = shlex.join(command)
 
@@ -256,6 +294,9 @@ def _run_steps(
             descriptor_parts.append(f"Model: {effective_model}")
         if effective_effort is not None:
             descriptor_parts.append(f"Effort: {effective_effort}")
+        if requested_continue:
+            descriptor_parts.append(f"Continue: {effective_continue}")
+        descriptor_parts.append(f"Session: {session_id[:8]}")
         descriptor_line = ", ".join(descriptor_parts) if descriptor_parts else None
 
         # --- Step header ---
@@ -273,6 +314,7 @@ def _run_steps(
             print(f"$ {command_str}")
 
         if dry_run:
+            previous_session_id = session_id
             continue
 
         # --- Execute step ---
@@ -313,6 +355,7 @@ def _run_steps(
                     _out(f"Commit (end): {end_commit}")
                 _out(f"Duration: {format_duration(total_duration)}")
                 _out(f"Result: FAILED at step {absolute_index}/{total_steps} ({step['name']})")
+                _out(f"Last session (full): {session_id}")
                 _out("=====================================")
             print(fail_msg, file=sys.stderr)
             return exit_code
@@ -320,6 +363,7 @@ def _run_steps(
         if feedback_files:
             consume_feedbacks(feedback_files, feedbacks_dir / "done")
 
+        previous_session_id = session_id
         completed_count += 1
 
     if not ran_any_step:
@@ -338,6 +382,8 @@ def _run_steps(
             _out(f"Commit (end): {end_commit}")
         _out(f"Duration: {format_duration(total_duration)}")
         _out(f"Result: SUCCESS ({completed_count}/{completed_count} steps completed)")
+        if previous_session_id:
+            _out(f"Last session (full): {previous_session_id}")
         _out("=====================================")
     else:
         print("\nWorkflow completed.")

@@ -26,13 +26,16 @@ user-invocable: true
 - 最新バージョン番号: !`bash .claude/scripts/get_latest_version.sh`
 - 最新のバージョン作成の結果が `docs/{カテゴリ}/ver{最新バージョン番号}/` に記載されている
 
-各バージョンは以下の5ステップで作成される。本スキルはステップ5に相当する:
+各バージョンは以下の6ステップで作成される（フルワークフロー）。本スキルはステップ6に相当する:
 
-1. `/split_plan` — `ROUGH_PLAN.md` ・ `REFACTOR.md` ・ `IMPLEMENT.md` を作成して、計画を立てた
-2. `/imple_plan` — 計画に基づいて実装し、`MEMO.md` に実装メモを記載した
-3. `/wrap_up` — `MEMO.md` の各項目に対応し、細かい改善を行った
-4. `/write_current` — `CURRENT.md` ・ `CLAUDE.md` の作成・更新を行った
-5. `/retrospective` — **（本ステップ）** 振り返りを行い、次バージョンへの改善点を整理する
+1. `/issue_plan` — 現状把握・ISSUE レビュー・`ROUGH_PLAN.md` 作成（frontmatter に `workflow: quick | full` / `source: issues | master_plan` を記録）を行った
+2. `/split_plan` — `ROUGH_PLAN.md` を受けて `REFACTOR.md` ・ `IMPLEMENT.md` を作成し、plan_review_agent で実装計画の review を行った
+3. `/imple_plan` — 計画に基づいて実装し、`MEMO.md` に実装メモを記載した
+4. `/wrap_up` — `MEMO.md` の各項目に対応し、細かい改善を行った
+5. `/write_current` — `CURRENT.md` ・ `CLAUDE.md` の作成・更新を行った
+6. `/retrospective` — **（本ステップ）** 振り返りを行い、次バージョンへの改善点を整理する
+
+（軽量ワークフロー quick は `/issue_plan → /quick_impl → /quick_doc` の 3 ステップ構成。本スキルは quick には含まれない）
 
 ## 3. 次バージョンの種別推奨
 

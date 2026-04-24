@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 assigned: ai
 priority: low
 reviewed_at: "2026-04-25"

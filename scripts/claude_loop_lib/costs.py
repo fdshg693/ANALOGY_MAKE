@@ -147,13 +147,25 @@ def extract_usage(result: dict[str, Any]) -> dict[str, int | None]:
 
 
 def extract_model_name(result: dict[str, Any]) -> str | None:
-    """Pick a model identifier from the modelUsage mapping (first key)."""
+    """Pick the model identifier with the highest costUSD from modelUsage.
+
+    - modelUsage absent / non-dict / empty → None
+    - costUSD missing or non-numeric for an entry → treated as 0.0
+    - all entries have costUSD == 0 (or missing/non-numeric) → first key returned
+    - ties resolved by max() natural ordering (first maximum wins)
+    """
     model_usage = result.get("modelUsage")
-    if isinstance(model_usage, dict) and model_usage:
-        for key in model_usage.keys():
-            if isinstance(key, str) and key:
-                return key
-    return None
+    if not isinstance(model_usage, dict) or not model_usage:
+        return None
+
+    def _cost(entry: Any) -> float:
+        if isinstance(entry, dict):
+            v = entry.get("costUSD")
+            if isinstance(v, (int, float)):
+                return float(v)
+        return 0.0
+
+    return max(model_usage, key=lambda k: _cost(model_usage[k]))
 
 
 def calculate_cost_from_price_book(

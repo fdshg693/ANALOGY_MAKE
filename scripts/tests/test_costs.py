@@ -106,12 +106,33 @@ class TestExtractUsage(unittest.TestCase):
 
 
 class TestExtractModelName(unittest.TestCase):
-    def test_picks_first_model_key(self) -> None:
-        result = json.loads(SAMPLE_RESULT_SUCCESS)
+    def test_returns_max_cost_model(self) -> None:
+        result = {
+            "modelUsage": {
+                "claude-haiku-4-5-20251001": {"costUSD": 0.00041},
+                "claude-opus-4-7": {"costUSD": 2.1728},
+            }
+        }
         assert costs.extract_model_name(result) == "claude-opus-4-7"
 
     def test_returns_none_when_absent(self) -> None:
         assert costs.extract_model_name({}) is None
+
+    def test_single_key_returned(self) -> None:
+        result = json.loads(SAMPLE_RESULT_SUCCESS)
+        assert costs.extract_model_name(result) == "claude-opus-4-7"
+
+    def test_missing_cost_usd_treated_as_zero(self) -> None:
+        result = {
+            "modelUsage": {
+                "model-a": {},
+                "model-b": {"costUSD": 0.01},
+            }
+        }
+        assert costs.extract_model_name(result) == "model-b"
+
+    def test_empty_model_usage_returns_none(self) -> None:
+        assert costs.extract_model_name({"modelUsage": {}}) is None
 
 
 class TestCalculateCostFromPriceBook(unittest.TestCase):

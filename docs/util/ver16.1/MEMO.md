@@ -69,3 +69,10 @@ PHASE8.0 §2 deferred execution を実装完了。
 - **ver16.2**: PHASE8.0 §3（token/cost 計測）。deferred execution の cost も観測対象に含める
 - **ver16.2 以降**: EXPERIMENT.md §U2/§U3（`--bare` 採用判定・二重 resume 実測）を実環境で検証。deferred が実際に発動する経路が登場するため、実機テストが可能になる
 - **ver16.2 以降**: `cleanupPeriodDays` を deferred 運用観点から明示設定するか検討（30 日を超える deferred は本版スコープ外）
+
+## wrap_up 対応結果（ver16.1）
+
+- ドキュメント更新候補（`CURRENT_scripts.md`）: `/write_current` step に委譲、本版スコープ外
+- 次バージョン引き継ぎ候補: 本 MEMO §次バージョン以降への引き継ぎ候補 に記録済み、追加 ISSUE 不要
+- 計画との乖離 3 件: 本 MEMO §計画との乖離 に理由付き記録済み、追加 ISSUE 不要
+- ISSUES 状態: `deferred-resume-twice-verification.md` は raw/ai のまま継続（実機検証待ち）

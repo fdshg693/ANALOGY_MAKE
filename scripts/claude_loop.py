@@ -14,7 +14,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from claude_loop_lib.workflow import (
     load_workflow, get_steps, resolve_defaults,
@@ -30,7 +30,9 @@ from claude_loop_lib.commands import (
 )
 from claude_loop_lib.logging_utils import (
     TeeWriter, create_log_path, print_step_header, format_duration,
+    format_step_cost_line, format_run_cost_footer,
 )
+from claude_loop_lib import costs
 from claude_loop_lib.git_utils import (
     get_head_commit, check_uncommitted_changes, auto_commit_changes,
 )
@@ -497,14 +499,24 @@ def _execute_single_step(
     tee: TeeWriter | None,
     prev_commit: str | None,
     step_start: float,
-) -> tuple[int, str | None]:
-    """Run one step's subprocess and emit the footer. Returns (exit_code, new_prev_commit)."""
+    capture_output: bool = False,
+) -> tuple[int, str | None, bytes | None]:
+    """Run one step's subprocess and emit the footer.
+
+    Returns (exit_code, new_prev_commit, captured_output). captured_output is
+    the raw stdout bytes when tee is not None and capture_output=True; None
+    otherwise. Used by cost tracking to parse `--output-format json` output.
+    """
+    captured: bytes | None = None
     if tee is not None:
         tee.write_line("--- stdout/stderr ---")
         process = subprocess.Popen(
             command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
-        exit_code = tee.write_process_output(process)
+        if capture_output:
+            exit_code, captured = tee.write_process_output_capturing(process)
+        else:
+            exit_code = tee.write_process_output(process)
     else:
         completed = subprocess.run(command, cwd=cwd, check=False)
         exit_code = completed.returncode
@@ -516,9 +528,18 @@ def _execute_single_step(
         current_commit = get_head_commit(cwd)
         if current_commit and prev_commit and current_commit != prev_commit:
             tee.write_line(f"Commit: {prev_commit} -> {current_commit}")
-        return exit_code, current_commit
+        return exit_code, current_commit, captured
 
-    return exit_code, prev_commit
+    return exit_code, prev_commit, captured
+
+
+class DeferredOutcome(TypedDict):
+    resume_code: int
+    external_results: list[deferred_commands.DeferredResult]
+    resume_started_at: datetime | None
+    resume_ended_at: datetime | None
+    resume_duration_seconds: float
+    resume_captured_output: bytes | None
 
 
 def _process_deferred(
@@ -530,13 +551,23 @@ def _process_deferred(
     common_args: list[str],
     tee: TeeWriter | None,
     out: Any,
-) -> int:
+    cost_tracking: bool = False,
+) -> DeferredOutcome:
     """Scan, execute, and consume pending deferred requests; resume Claude.
 
-    Returns the resume subprocess exit code, or 0 when there is nothing pending.
-    On orphan marker detection (prior SIGKILL mid-run), returns non-zero without
-    executing any request so the workflow halts for human triage.
+    Returns an outcome dict containing the resume exit code, external results,
+    and (when cost_tracking) timing + captured output for the resume
+    subprocess. resume_code==0 means nothing pending or the resume completed
+    successfully. On orphan marker detection resume_code is non-zero.
     """
+    outcome: DeferredOutcome = {
+        "resume_code": 0,
+        "external_results": [],
+        "resume_started_at": None,
+        "resume_ended_at": None,
+        "resume_duration_seconds": 0.0,
+        "resume_captured_output": None,
+    }
     deferred_dir = deferred_commands.default_deferred_dir(cwd)
 
     orphans = deferred_commands.scan_orphans(deferred_dir)
@@ -546,11 +577,12 @@ def _process_deferred(
         for marker in orphans:
             out(f"  - {marker}")
         out("Resolve manually (inspect / delete markers) before rerunning.")
-        return 1
+        outcome["resume_code"] = 1
+        return outcome
 
     pending = deferred_commands.scan_pending(deferred_dir)
     if not pending:
-        return 0
+        return outcome
 
     out("")
     out(f"--- deferred: {len(pending)} request(s) pending ---")
@@ -573,31 +605,46 @@ def _process_deferred(
             out(line)
         results.append(result)
 
+    outcome["external_results"] = results
+
     if not results:
-        return 0
+        return outcome
 
     resume_prompt = deferred_commands.build_resume_prompt(results)
     resume_command = build_command(
         executable, prompt_flag, common_args,
         step={"prompt": resume_prompt, "args": []},
         session_id=session_id, resume=True,
+        output_format_json=cost_tracking and tee is not None,
     )
     out("--- deferred: resuming Claude ---")
     out(f"$ {shlex.join(resume_command)}")
+    resume_started_at = datetime.now()
     resume_start = time.monotonic()
+    captured: bytes | None = None
     if tee is not None:
         process = subprocess.Popen(
             resume_command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
-        resume_code = tee.write_process_output(process)
+        if cost_tracking:
+            resume_code, captured = tee.write_process_output_capturing(process)
+        else:
+            resume_code = tee.write_process_output(process)
     else:
         completed = subprocess.run(resume_command, cwd=cwd, check=False)
         resume_code = completed.returncode
+    resume_ended_at = datetime.now()
+    duration_seconds = time.monotonic() - resume_start
     out(
         f"--- deferred: resume end (exit: {resume_code}, "
-        f"duration: {format_duration(time.monotonic() - resume_start)}) ---"
+        f"duration: {format_duration(duration_seconds)}) ---"
     )
-    return resume_code
+    outcome["resume_code"] = resume_code
+    outcome["resume_started_at"] = resume_started_at
+    outcome["resume_ended_at"] = resume_ended_at
+    outcome["resume_duration_seconds"] = duration_seconds
+    outcome["resume_captured_output"] = captured
+    return outcome
 
 
 def _run_steps(
@@ -625,6 +672,38 @@ def _run_steps(
     previous_session_id: str | None = None
     continue_warned = False
     loop_boundary_warned = False
+
+    # Cost tracking is active only when a log is enabled (tee is not None).
+    # Without tee, stdout is not captured so the JSON output cannot be parsed.
+    cost_tracking_enabled = tee is not None
+    step_costs: list[costs.StepCost] = []
+    claude_cli_version = (
+        costs.detect_claude_code_cli_version(executable)
+        if cost_tracking_enabled else None
+    )
+
+    def _emit_cost_footer_and_sidecar(finish_time: datetime) -> None:
+        if not cost_tracking_enabled or tee is None:
+            return
+        summary = costs.aggregate_run(
+            workflow_label=(
+                log_path.stem.split("_", 2)[-1] if log_path else "unknown"
+            ),
+            started_at=start_time.isoformat(),
+            ended_at=finish_time.isoformat(),
+            steps=step_costs,
+            claude_code_cli_version=claude_cli_version,
+        )
+        _out("")
+        for line in format_run_cost_footer(summary):
+            _out(line)
+        if log_path is not None:
+            sidecar_path = log_path.with_suffix(".costs.json")
+            try:
+                costs.write_sidecar(sidecar_path, summary)
+                _out(f"Cost sidecar: {sidecar_path.name}")
+            except OSError as exc:
+                _out(f"WARNING: failed to write cost sidecar: {exc}")
 
     def _out(line: str) -> None:
         if tee is not None:
@@ -688,6 +767,7 @@ def _run_steps(
             executable, prompt_flag, common_args, step, log_file_path,
             feedbacks=feedback_contents or None, defaults=defaults,
             session_id=session_id, resume=resume,
+            output_format_json=cost_tracking_enabled,
         )
         command_str = shlex.join(command)
 
@@ -735,13 +815,31 @@ def _run_steps(
             previous_session_id = session_id
             continue
 
-        exit_code, prev_commit = _execute_single_step(
+        exit_code, prev_commit, captured_output = _execute_single_step(
             command=command,
             cwd=cwd,
             tee=tee,
             prev_commit=prev_commit,
             step_start=step_start,
+            capture_output=cost_tracking_enabled,
         )
+        step_ended_at = datetime.now()
+        step_duration = time.monotonic() - step_start
+
+        if cost_tracking_enabled:
+            step_cost = costs.build_step_cost_from_cli_output(
+                step_name=step["name"],
+                session_id=session_id,
+                started_at=step_start_time.isoformat(),
+                ended_at=step_ended_at.isoformat(),
+                duration_seconds=step_duration,
+                kind="claude",
+                raw_output=captured_output,
+                default_model=effective_model,
+                reason_when_missing="non-json-output",
+            )
+            step_costs.append(step_cost)
+            _out(format_step_cost_line(step_cost))
 
         # --- Handle failure ---
         if exit_code != 0:
@@ -761,6 +859,7 @@ def _run_steps(
                 _out(f"Result: FAILED at step {absolute_index}/{total_steps} ({step['name']})")
                 _out(f"Last session (full): {session_id}")
                 _out("=====================================")
+                _emit_cost_footer_and_sidecar(end_time)
             print(fail_msg, file=sys.stderr)
             return exit_code, stats
 
@@ -768,7 +867,7 @@ def _run_steps(
             consume_feedbacks(feedback_files, feedbacks_dir / "done")
 
         if deferred_enabled:
-            resume_code = _process_deferred(
+            deferred_outcome = _process_deferred(
                 cwd=cwd,
                 session_id=session_id,
                 executable=executable,
@@ -776,7 +875,39 @@ def _run_steps(
                 common_args=common_args,
                 tee=tee,
                 out=_out,
+                cost_tracking=cost_tracking_enabled,
             )
+            resume_code = deferred_outcome["resume_code"]
+
+            if cost_tracking_enabled:
+                for ext_result in deferred_outcome["external_results"]:
+                    step_costs.append(costs.build_external_step_cost(
+                        step_name=(
+                            f"{step['name']} (deferred_external:"
+                            f"{ext_result['request_id']})"
+                        ),
+                        session_id=session_id,
+                        started_at=ext_result["started_at"],
+                        ended_at=ext_result["ended_at"],
+                        duration_seconds=float(ext_result["duration_sec"]),
+                    ))
+                if deferred_outcome["resume_started_at"] is not None:
+                    resume_started = deferred_outcome["resume_started_at"]
+                    resume_ended = deferred_outcome["resume_ended_at"] or datetime.now()
+                    resume_cost = costs.build_step_cost_from_cli_output(
+                        step_name=f"{step['name']} (deferred_resume)",
+                        session_id=session_id,
+                        started_at=resume_started.isoformat(),
+                        ended_at=resume_ended.isoformat(),
+                        duration_seconds=deferred_outcome["resume_duration_seconds"],
+                        kind="deferred_resume",
+                        raw_output=deferred_outcome["resume_captured_output"],
+                        default_model=effective_model,
+                        reason_when_missing="non-json-output",
+                    )
+                    step_costs.append(resume_cost)
+                    _out(format_step_cost_line(resume_cost))
+
             if resume_code != 0:
                 stats.failed_step = f"{step['name']} (deferred resume)"
                 fail_msg = (
@@ -799,6 +930,7 @@ def _run_steps(
                     )
                     _out(f"Last session (full): {session_id}")
                     _out("=====================================")
+                    _emit_cost_footer_and_sidecar(end_time)
                 print(fail_msg, file=sys.stderr)
                 return resume_code, stats
 
@@ -826,6 +958,7 @@ def _run_steps(
         if previous_session_id:
             _out(f"Last session (full): {previous_session_id}")
         _out("=====================================")
+        _emit_cost_footer_and_sidecar(end_time)
     else:
         print("\nWorkflow completed.")
 

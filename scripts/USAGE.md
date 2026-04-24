@@ -332,6 +332,7 @@ $ {command}
 （出力内容）
 --- end (exit: {code}, duration: {duration}) ---
 Commit: {before} -> {after}          ← コミットが変化した場合のみ
+Cost: ${amount} (in: N, out: N, cache_r: N, cache_w: N, model: ...)  ← ver16.2+: cost 計測有効時のみ
 
 =====================================
 Finished: {timestamp}
@@ -340,7 +341,16 @@ Duration: {total_duration}
 Result: SUCCESS (N/N steps completed)
 Last session (full): {full_uuid}     ← 末尾ステップの完全な session ID
 =====================================
+
+Run cost: $X.XXXX USD (Claude Code CLI X.Y.Z)   ← ver16.2+ cost footer
+Steps: N ok / M unavailable
+Per-step:
+  [1] {step_name}    $X.XXXX  (model)
+  ...
+Cost sidecar: {YYYYMMDD_HHMMSS}_{workflow}.costs.json
 ```
+
+**cost 計測 (ver16.2+)**: ログが有効な run では Claude 呼び出しに `--output-format json` が自動付与され、step 毎の cost 行と run 末尾の合計 + sidecar JSON が生成される。`--output-format` は `build_command` 内でハードコード付与されるため、step の `args:` に重複付与すると CLI がエラーになる。詳細は [`README.md`](README.md#cost-計測phase80-3--ver162) を参照。
 
 descriptor 行（Model / Effort / SystemPrompt / AppendSystemPrompt / Continue / Session）の表示ルール:
 

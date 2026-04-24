@@ -172,6 +172,21 @@ python scripts/claude_loop.py --workflow question --category util
 
 詳細フォーマット仕様は [`USAGE.md`](USAGE.md) の「ログフォーマット（詳細）」を参照。
 
+## cost 計測（PHASE8.0 §3 / ver16.2）
+
+ログが有効な run（`--no-log` / `--dry-run` 以外）では、各 Claude invocation に `--output-format json` が自動付与され、CLI が返す `SDKResultMessage` から token 使用量と `total_cost_usd` を抽出して記録する。
+
+- **step 毎の cost 行**: `--- end (exit: ...) ---` の直後に `Cost: $0.0123 (in: 1200, out: 340, cache_r: 50, cache_w: 0, model: claude-opus-4-7)` の 1 行が追記される
+- **run 末尾の合計**: workflow 完了（成功・失敗いずれも）時に `Run cost: $0.XXXX USD (Claude Code CLI X.Y.Z)` と per-step 内訳が追加される
+- **sidecar JSON**: ログと同名 stem の `{YYYYMMDD_HHMMSS}_{workflow}.costs.json` が `logs/workflow/` に生成される（`.gitignore` 済）。後続の retrospective で JSON 集計に使える
+- **primary コスト源**: `SDKResultMessage.total_cost_usd`（CLI が build 時に同梱した価格表で算出した **client-side estimate**）。正本 billing は [Anthropic Console Usage page](https://console.anthropic.com/) を参照
+- **fallback**: `total_cost_usd` が欠落している場合のみ `costs.py` の `PRICE_BOOK_USD_PER_MTOK`（2026-04-24 時点の公式 pricing page 値を hardcode）で近似計算する。`cost_source` フィールドで `"cli"` / `"fallback_price_book"` を区別できる
+- **欠測**: JSON が parse できなかった step は `status="unavailable"` / `reason="non-json-output"` で残り、合計には含まれず `missing_steps` カウンタに加算される
+- **deferred execution**: Claude 再開は `kind="deferred_resume"`、外部コマンドは `kind="deferred_external"` / `cost_usd=0.0` として個別 record で記録される
+- **live streaming**: `--output-format json` 付与時は CLI が終了まで出力を保留するため、実行中の live log がサイレントになる（出力は step 終了時に 1 JSON 行としてログに残る）。live streaming を優先したい場合は `--no-log` で run する（cost 計測は無効化される）
+
+price book を更新する場合は `scripts/claude_loop_lib/costs.py` の `PRICE_BOOK_USD_PER_MTOK` と `PRICE_BOOK_SOURCE`（出典 URL + 参照日）を同時更新する。
+
 ## 完了通知（run 単位）
 
 ver15.4 から、通知は **workflow 全体の終了時に 1 回だけ** 発火する。`--max-loops N` で複数ループ回しても通知は最後に 1 回のみ。通知タイミングは以下の 3 経路に一貫:

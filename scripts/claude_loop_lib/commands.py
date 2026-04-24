@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 
+CLAUDE_OUTPUT_FORMAT_JSON: tuple[str, ...] = ("--output-format", "json")
+
+
 def build_command(
     executable: str,
     prompt_flag: str,
@@ -15,8 +18,11 @@ def build_command(
     defaults: dict[str, str] | None = None,
     session_id: str | None = None,
     resume: bool = False,
+    output_format_json: bool = False,
 ) -> list[str]:
     cmd = [executable, prompt_flag, step["prompt"], *common_args, *step["args"]]
+    if output_format_json:
+        cmd.extend(CLAUDE_OUTPUT_FORMAT_JSON)
     defaults = defaults or {}
     for key, flag in (
         ("model", "--model"),

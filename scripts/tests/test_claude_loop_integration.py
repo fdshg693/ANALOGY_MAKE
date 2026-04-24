@@ -138,6 +138,87 @@ class TestRunStepsSessionTracking(unittest.TestCase):
 
     @patch("claude_loop.uuid.uuid4")
     @patch("claude_loop.subprocess.run")
+    def test_deferred_request_triggers_resume(
+        self, mock_run: MagicMock, mock_uuid: MagicMock
+    ) -> None:
+        """A pending deferred request must trigger resume with `-r <session_id>`
+        and be moved to done/ after execution (ver16.1 PHASE8.0 §2)."""
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_uuid.side_effect = ["uuid-1"]
+
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            deferred_dir = cwd / "data" / "deferred"
+            deferred_dir.mkdir(parents=True)
+            (deferred_dir / "req-1.md").write_text(
+                "---\n"
+                "request_id: req-1\n"
+                "source_step: s1\n"
+                "session_id: sess-1\n"
+                f"cwd: {cwd}\n"
+                "---\n"
+                "```bash\n"
+                "echo hello\n"
+                "```\n",
+                encoding="utf-8",
+            )
+
+            steps = self._make_steps({})
+            step_iter = iter([(steps[0], 1)])
+            exit_code, _ = _run_steps(
+                step_iter, steps, "claude", "-p", [],
+                cwd=cwd, dry_run=False, tee=None, log_path=None,
+            )
+            assert exit_code == 0
+
+            commands = self._captured_commands(mock_run)
+            # One step command, one shell command for deferred, one resume command.
+            claude_cmds = [c for c in commands if c and c[0] == "claude"]
+            assert len(claude_cmds) == 2, f"Expected 2 claude invocations, got {len(claude_cmds)}"
+            resume_cmd = claude_cmds[-1]
+            assert "-r" in resume_cmd
+            assert resume_cmd[resume_cmd.index("-r") + 1] == "uuid-1"
+
+            assert not (deferred_dir / "req-1.md").exists()
+            assert (deferred_dir / "done" / "req-1.md").exists()
+            assert (deferred_dir / "results" / "req-1.meta.json").exists()
+
+    @patch("claude_loop.subprocess.run")
+    def test_no_deferred_flag_skips_scan(
+        self, mock_run: MagicMock,
+    ) -> None:
+        """When deferred_enabled=False, a pending request must be left in place."""
+        mock_run.return_value = MagicMock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            deferred_dir = cwd / "data" / "deferred"
+            deferred_dir.mkdir(parents=True)
+            (deferred_dir / "req-skip.md").write_text(
+                "---\n"
+                "request_id: req-skip\n"
+                "source_step: s1\n"
+                "session_id: sess-1\n"
+                f"cwd: {cwd}\n"
+                "---\n"
+                "```bash\necho hi\n```\n",
+                encoding="utf-8",
+            )
+            steps = self._make_steps({})
+            step_iter = iter([(steps[0], 1)])
+            _run_steps(
+                step_iter, steps, "claude", "-p", [],
+                cwd=cwd, dry_run=False, tee=None, log_path=None,
+                deferred_enabled=False,
+            )
+            # request file still pending
+            assert (deferred_dir / "req-skip.md").exists()
+            # no results written
+            assert not (deferred_dir / "results").exists() or \
+                not any((deferred_dir / "results").iterdir())
+
+    @patch("claude_loop.uuid.uuid4")
+    @patch("claude_loop.subprocess.run")
     def test_start_greater_than_one_disables_continue(
         self, mock_run: MagicMock, mock_uuid: MagicMock
     ) -> None:

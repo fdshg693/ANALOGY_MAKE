@@ -39,6 +39,7 @@ python scripts/issue_worklist.py --category app
 | `--no-log` | - | flag | `False` | ログファイル出力を無効化 |
 | `--no-notify` | - | flag | `False` | ワークフロー完了通知を無効化（run 単位で 1 回発火、中断時も含め抑止対象） |
 | `--auto-commit-before` | - | flag | `False` | ワークフロー開始前に未コミット変更を自動コミット |
+| `--no-deferred` | - | flag | `False` | 各ステップ成功後の deferred queue 走査を無効化（問題切り分け用。ver16.1） |
 | `--max-loops` | - | int (>=1) | `1` | 最大ワークフローループ回数（`--max-step-runs` と排他） |
 | `--max-step-runs` | - | int (>=1) | - | 最大ステップ実行回数（`--max-loops` と排他） |
 
@@ -220,6 +221,81 @@ step: [split_plan, imple_plan]
 ### 異常終了時のふるまい
 
 ステップが非ゼロ exit / 例外 / Ctrl-C で終了した場合、`consume_feedbacks()` は呼ばれず、FEEDBACK は `FEEDBACKS/` 直下に残る。次回 run で再度読み込まれるため、retry 時に同じフィードバックが再適用される挙動になる（仕様）。
+
+## Deferred command queue（ver16.1 PHASE8.0 §2）
+
+Claude が workflow 実行中に「長時間タスクとして外出ししたいコマンド群」を構造化ファイルとして登録し、Python ランナーがステップ完了後に外出し実行 → 結果保存 → `claude -r <session-id>` で同一セッションを再開する仕組み。
+
+### 配置
+
+- request: `data/deferred/<request_id>.md`（frontmatter + body markdown）
+- 実行中マーカー: `data/deferred/<request_id>.started`（`execute_request` の `try/finally` で自動管理）
+- 完了: `data/deferred/done/<request_id>.md`
+- 結果: `data/deferred/results/<request_id>.{meta.json,stdout.log,stderr.log}`
+
+`data/` は `.gitignore` 済のため追加設定不要。
+
+### request schema（markdown frontmatter）
+
+```markdown
+---
+request_id: <uuid4 or slug>
+source_step: <step name, e.g. "imple_plan">
+session_id: <Claude session id to resume with>
+cwd: <absolute or repo-relative path; 省略時は deferred_dir の 2 階層上>
+timeout_sec: <int or 省略>
+expected_artifacts:
+  - <path>
+note: |
+  resume 時に Claude に渡す補足メモ
+---
+
+# Commands
+
+```bash
+echo hello
+pwd
+```
+```
+
+本文の fenced ` ```bash ` ブロック内の各行が順次実行される（1 行 = 1 コマンド、`shell=True`）。前段が失敗したら後段はスキップ。
+
+### result meta.json スキーマ
+
+```json
+{
+  "request_id": "req-001",
+  "source_step": "imple_plan",
+  "session_id": "sess-abc",
+  "commands": ["echo hello"],
+  "exit_codes": [0],
+  "overall_exit_code": 0,
+  "started_at": "2026-04-24T18:00:00",
+  "ended_at":   "2026-04-24T18:00:01",
+  "duration_sec": 1.0,
+  "stdout_bytes": 6,
+  "stdout_path": ".../results/req-001.stdout.log",
+  "stderr_bytes": 0,
+  "stderr_path": ".../results/req-001.stderr.log",
+  "head_excerpt": "hello",
+  "tail_excerpt": ""
+}
+```
+
+巨大な stdout は sidecar log に分離し、resume prompt には head 20 行 + tail 20 行の excerpt のみを埋め込む（EXPERIMENT §U4 で head/tail 20 行案を確定）。必要に応じて Claude 側が `stdout_path` を `Read` すること。
+
+### orphan 検知
+
+`.started` マーカーが次回 workflow 起動時に残存していた場合、`_process_deferred` は orphan として検出し、**そのステップでワークフローを停止**する（SIGKILL 相当で途中中断された request を自動再実行させない安全機構）。復旧は手動で行う:
+
+1. `data/deferred/results/<request_id>.*` を確認し、どこまで実行されたか把握
+2. 副作用の巻き戻しが必要なら手動対応
+3. `<request_id>.started` と（必要なら）`<request_id>.md` を削除・移動
+4. workflow を再開
+
+### 問題切り分け
+
+`--no-deferred` フラグで queue 走査を完全に無効化できる（既存 workflow の挙動退行切り分け用途）。
 
 ## 完了通知（詳細）
 

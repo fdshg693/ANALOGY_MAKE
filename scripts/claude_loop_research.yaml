@@ -49,6 +49,7 @@ steps:
 
   - name: write_current
     prompt: /write_current
+    effort: high
 
   - name: retrospective
     prompt: /retrospective

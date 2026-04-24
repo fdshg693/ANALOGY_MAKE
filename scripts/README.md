@@ -38,6 +38,7 @@
 | `logging_utils.py` | `TeeWriter`、`create_log_path`、`print_step_header`、`format_duration` |
 | `git_utils.py` | `get_head_commit` / `check_uncommitted_changes` / `auto_commit_changes` |
 | `notify.py` | `notify_completion(RunSummary)`（toast → beep フォールバック、run サマリ化・永続表示寄り） |
+| `deferred_commands.py` | Deferred command queue（ver16.1）。`data/deferred/` の request 走査・外部実行・結果保存・resume prompt 組み立てを担う（詳細: [USAGE.md](USAGE.md#deferred-command-queue)） |
 | `issues.py` | ISSUE frontmatter 共通ヘルパ（`VALID_STATUS` / `VALID_ASSIGNED` / `extract_status_assigned`）。`issue_status.py` と `issue_worklist.py` の共通基盤 |
 | `questions.py` | Question frontmatter 共通ヘルパ（`issues.py` の並列実装、`review` ステータスを持たない）。`question_status.py` と `question_worklist.py` の共通基盤 |
 

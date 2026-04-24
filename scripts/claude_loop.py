@@ -40,6 +40,7 @@ from claude_loop_lib.notify import (
     RESULT_SUCCESS, RESULT_FAILED, RESULT_INTERRUPTED,
 )
 from claude_loop_lib.validation import validate_startup
+from claude_loop_lib import deferred_commands
 
 
 YAML_DIR = Path(__file__).resolve().parent
@@ -134,6 +135,11 @@ def parse_args() -> argparse.Namespace:
         "--auto-commit-before",
         action="store_true",
         help="Automatically commit uncommitted changes before starting the workflow",
+    )
+    parser.add_argument(
+        "--no-deferred",
+        action="store_true",
+        help="Disable the deferred-command queue scan between steps (ver16.1 PHASE8.0 §2)",
     )
     loop_group = parser.add_mutually_exclusive_group()
     loop_group.add_argument(
@@ -310,6 +316,7 @@ def _execute_yaml(
         cwd, args.dry_run, tee, log_path,
         uncommitted_status, defaults,
         continue_disabled=continue_disabled,
+        deferred_enabled=not args.no_deferred,
     )
     stats.workflow_label = yaml_path.stem
     return exit_code, stats
@@ -514,6 +521,85 @@ def _execute_single_step(
     return exit_code, prev_commit
 
 
+def _process_deferred(
+    *,
+    cwd: Path,
+    session_id: str,
+    executable: str,
+    prompt_flag: str,
+    common_args: list[str],
+    tee: TeeWriter | None,
+    out: Any,
+) -> int:
+    """Scan, execute, and consume pending deferred requests; resume Claude.
+
+    Returns the resume subprocess exit code, or 0 when there is nothing pending.
+    On orphan marker detection (prior SIGKILL mid-run), returns non-zero without
+    executing any request so the workflow halts for human triage.
+    """
+    deferred_dir = deferred_commands.default_deferred_dir(cwd)
+
+    orphans = deferred_commands.scan_orphans(deferred_dir)
+    if orphans:
+        out("")
+        out(f"ERROR: deferred orphan markers detected ({len(orphans)} file(s)):")
+        for marker in orphans:
+            out(f"  - {marker}")
+        out("Resolve manually (inspect / delete markers) before rerunning.")
+        return 1
+
+    pending = deferred_commands.scan_pending(deferred_dir)
+    if not pending:
+        return 0
+
+    out("")
+    out(f"--- deferred: {len(pending)} request(s) pending ---")
+
+    results: list[deferred_commands.DeferredResult] = []
+    done_dir = deferred_dir / "done"
+    for req_path in pending:
+        try:
+            req = deferred_commands.validate_request(req_path)
+        except ValueError as exc:
+            out(f"[deferred] skip invalid request {req_path.name}: {exc}")
+            deferred_commands.consume_request(req_path, done_dir)
+            continue
+        out(f"[deferred] executing {req['request_id']} from '{req['source_step']}'")
+        try:
+            result = deferred_commands.execute_request(req, deferred_dir=deferred_dir)
+        finally:
+            deferred_commands.consume_request(req_path, done_dir)
+        for line in deferred_commands.summarize_result(result):
+            out(line)
+        results.append(result)
+
+    if not results:
+        return 0
+
+    resume_prompt = deferred_commands.build_resume_prompt(results)
+    resume_command = build_command(
+        executable, prompt_flag, common_args,
+        step={"prompt": resume_prompt, "args": []},
+        session_id=session_id, resume=True,
+    )
+    out("--- deferred: resuming Claude ---")
+    out(f"$ {shlex.join(resume_command)}")
+    resume_start = time.monotonic()
+    if tee is not None:
+        process = subprocess.Popen(
+            resume_command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+        resume_code = tee.write_process_output(process)
+    else:
+        completed = subprocess.run(resume_command, cwd=cwd, check=False)
+        resume_code = completed.returncode
+    out(
+        f"--- deferred: resume end (exit: {resume_code}, "
+        f"duration: {format_duration(time.monotonic() - resume_start)}) ---"
+    )
+    return resume_code
+
+
 def _run_steps(
     step_iter,
     steps: list[dict[str, Any]],
@@ -527,6 +613,7 @@ def _run_steps(
     uncommitted_status: str | None = None,
     defaults: dict[str, str] | None = None,
     continue_disabled: bool = False,
+    deferred_enabled: bool = True,
 ) -> tuple[int, RunStats]:
     """Execute workflow steps with optional logging via TeeWriter."""
     total_steps = len(steps)
@@ -679,6 +766,41 @@ def _run_steps(
 
         if feedback_files:
             consume_feedbacks(feedback_files, feedbacks_dir / "done")
+
+        if deferred_enabled:
+            resume_code = _process_deferred(
+                cwd=cwd,
+                session_id=session_id,
+                executable=executable,
+                prompt_flag=prompt_flag,
+                common_args=common_args,
+                tee=tee,
+                out=_out,
+            )
+            if resume_code != 0:
+                stats.failed_step = f"{step['name']} (deferred resume)"
+                fail_msg = (
+                    f"Deferred resume failed with exit code {resume_code} "
+                    f"after step: {step['name']}"
+                )
+                if tee is not None:
+                    end_time = datetime.now()
+                    total_duration = time.monotonic() - workflow_start
+                    end_commit = get_head_commit(cwd)
+                    _out("")
+                    _out("=====================================")
+                    _out(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                    if end_commit:
+                        _out(f"Commit (end): {end_commit}")
+                    _out(f"Duration: {format_duration(total_duration)}")
+                    _out(
+                        f"Result: FAILED at deferred resume after step "
+                        f"{absolute_index}/{total_steps} ({step['name']})"
+                    )
+                    _out(f"Last session (full): {session_id}")
+                    _out("=====================================")
+                print(fail_msg, file=sys.stderr)
+                return resume_code, stats
 
         previous_session_id = session_id
         stats.completed_steps += 1

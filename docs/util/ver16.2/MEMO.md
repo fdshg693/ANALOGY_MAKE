@@ -84,3 +84,22 @@ source: imple_plan
 - `python -m unittest scripts.tests.test_{commands,deferred_commands,claude_loop_integration,claude_loop_cli,feedbacks,frontmatter,git_utils,issue_worklist,issues,notify,question_worklist,questions,validation,workflow}` → 322 tests 総計 OK（regression なし）
 - `npx nuxi typecheck` — vue-router volar の既知警告のみ（CLAUDE.md 記載、本変更と無関係）
 - smoke: `python scripts/claude_loop.py --dry-run -w quick` は既存挙動と同じ（cost tracking は tee=None のため無効）
+
+## wrap_up 対応結果（2026-04-24）
+
+plan_review_agent による確認済み。
+
+| リスク | 判定 | 内容 |
+|---|---|---|
+| R1 live サイレント | ⏭️ 対応不要 | 初回 run 結果が出てから判断。retrospective で観察、問題あれば ver16.3 で B 案（stream-json）に切替 |
+| R2 実機突合未検証 | ⏭️ 対応不要 | 本番 run の costs.json で自然に裏取り。retrospective で突合し乖離があれば ver16.3 で修正 |
+| R3 PRICE_BOOK drift | ✅ 対応完了 | fallback 経路のみ影響。primary（total_cost_usd）が機能する限り許容範囲 |
+| R4 deferred cost 分離 | ✅ 対応完了 | 実装済み（3 kind 別 record）。実機検証は retrospective 待ち |
+| R5 YAML 同期契約 | ✅ 対応完了 | build_command 内 hardcode のため 6 YAML 変更なし |
+
+ISSUES 整理:
+- 新規起票: なし（R1/R2 とも retrospective 後まで保留が適切との判断）
+- 既存 ISSUE 変更: なし（deferred-resume-twice-verification は ver16.2 対象外）
+- 削除: なし（ver16.2 の対応で解決済み ISSUE なし）
+
+コミット: `docs(ver16.2): wrap_up完了`（MEMO.md の対応結果追記のみ）

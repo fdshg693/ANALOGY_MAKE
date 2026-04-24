@@ -30,3 +30,15 @@ IMPLEMENT.md に `## リスク・不確実性` セクションが存在しない
 - **本 ISSUE の昇格タイミング**: 作成した `issue-review-long-carryover-redemotion` は `status: raw / ai` のため、次回 util カテゴリで `/issue_plan` が走る際のレビューフェーズで `review / ai` 経由 `ready / ai` に昇格させる想定。ver16.4 で扱う候補
 - **SKILL 拡張版のスコープ試算**: 本 ISSUE が `ready / ai` に昇格後、`issue_review` SKILL 本体の拡張実装はおそらく minor 1 版で完結するが、`issue_plan` 側インライン展開部の同期更新が必要になるため 2〜3 ファイル編集になる見込み
 - **`/retrospective` への申し送り**: §A の cost tracking 突合観点チェックリスト（A-1〜A-6）は IMPLEMENT.md §A に固定済み。`/retrospective` 着手時は IMPLEMENT.md §A のチェックリストを起点に `logs/workflow/*.costs.json` を走査する運用を想定。CHANGES.md / RETROSPECTIVE.md 側でも参照リンクを張るのが望ましい
+
+## wrap_up 結果
+
+plan_review_agent による確認済み（2026-04-24）。残課題 3 項目はすべて「対応不要」と判定:
+
+- **項目 1**（ISSUE 昇格タイミング）: IMPLEMENT.md §B / PLAN_HANDOFF.md に設計明記済みで追加アクション不要。当該 ISSUE 自体が記録として機能
+- **項目 2**（SKILL 拡張版スコープ試算）: `/retrospective` の handoff 節で書く性質のもの。MEMO.md 止まりで適切
+- **項目 3**（/retrospective への申し送り）: IMPLEMENT.md §A と PLAN_HANDOFF.md §`/retrospective` に引き継ぎ情報が固定済みで実害なし
+
+ISSUES への追加対象なし。wrap_up での変更は本追記のみのため、コミットは次ステップ（/write_current または /retrospective）に合算するか、変更がなければスキップ。
+
+**wrap_up: MEMO.md 追記のみ（コード変更・ISSUES 変更なし）**

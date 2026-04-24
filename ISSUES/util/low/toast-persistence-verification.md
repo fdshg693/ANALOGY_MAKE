@@ -1,5 +1,5 @@
 ---
-status: ready
+status: review
 assigned: ai
 priority: low
 reviewed_at: 2026-04-24
@@ -40,3 +40,9 @@ ver15.4 で `scripts/claude_loop_lib/notify.py::_notify_toast` を `scenario='re
 - `docs/util/ver15.4/IMPLEMENT.md` §リスク・不確実性 R1
 - `docs/util/ver15.4/MEMO.md` § R1 の検証先送り記録
 - `scripts/claude_loop_lib/notify.py::_build_toast_xml`
+
+## 人間追記
+
+上記を自分で検証したいが、いちいちワークフローを回して検証するのは困難
+そこで、テスト用の薄いスクリプトを切り出して。そのスクリプトを実行して結果を私がここに記述します。
+（自動でログなどが吐かれるようにすることを推奨）

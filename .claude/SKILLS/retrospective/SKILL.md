@@ -114,6 +114,7 @@ user-invocable: true
   - **対応済み（実装が完了し、ISSUE の目的を果たした）** → 削除する
   - **持ち越し中（`status: ready / ai` で残してある、`status: need_human_action / human` で人間対応待ち、または明示的に次バージョン以降に先送り宣言したもの）** → 削除しない。MEMO.md / 当 RETROSPECTIVE.md に持ち越し理由を記載
   - frontmatter 無し（`raw / human` 扱い）→ 触らない
+  - **レトロスペクティブで追記すべきと判断したもの**: レトロスペクティブで追記すべきと判断したものは、そのまま追記する
 
 ## 4.5 次ループへの FEEDBACK handoff
 

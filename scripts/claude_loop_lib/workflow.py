@@ -15,7 +15,23 @@ ISSUE_PLAN_YAML_FILENAME = "claude_loop_issue_plan.yaml"
 SCOUT_YAML_FILENAME = "claude_loop_scout.yaml"
 QUESTION_YAML_FILENAME = "claude_loop_question.yaml"
 
-RESERVED_WORKFLOW_VALUES = ("auto", "full", "quick", "scout", "question")
+# workflow 値 → YAML ファイル名（"auto" は sentinel のため含めない）
+WORKFLOW_YAML_FILES: dict[str, str] = {
+    "full": FULL_YAML_FILENAME,
+    "quick": QUICK_YAML_FILENAME,
+    "scout": SCOUT_YAML_FILENAME,
+    "question": QUESTION_YAML_FILENAME,
+}
+
+RESERVED_WORKFLOW_VALUES: tuple[str, ...] = ("auto",) + tuple(WORKFLOW_YAML_FILES)
+
+# --workflow auto 起動時にスキーマ検証する YAML 候補（phase2 で選択されうるもの）。
+# scout / question は auto 非対象のため含めない。
+AUTO_TARGET_YAMLS: tuple[str, ...] = (
+    ISSUE_PLAN_YAML_FILENAME,
+    FULL_YAML_FILENAME,
+    QUICK_YAML_FILENAME,
+)
 
 OVERRIDE_STRING_KEYS: tuple[str, ...] = (
     "model",
@@ -34,24 +50,16 @@ def resolve_workflow_value(value: str, yaml_dir: Path) -> str | Path:
     """Resolve the --workflow CLI value.
 
     - "auto" -> returns "auto" (sentinel; caller handles two-phase execution)
-    - "full" -> Path(yaml_dir / FULL_YAML_FILENAME)
-    - "quick" -> Path(yaml_dir / QUICK_YAML_FILENAME)
-    - "scout" -> Path(yaml_dir / SCOUT_YAML_FILENAME)
-    - "question" -> Path(yaml_dir / QUESTION_YAML_FILENAME)
+    - registered name (full/quick/scout/question/...) -> yaml_dir / filename
     - other (path-like) -> Path(value).expanduser()
 
     Reserved-value matching is exact and case-sensitive.
     """
     if value == "auto":
         return "auto"
-    if value == "full":
-        return yaml_dir / FULL_YAML_FILENAME
-    if value == "quick":
-        return yaml_dir / QUICK_YAML_FILENAME
-    if value == "scout":
-        return yaml_dir / SCOUT_YAML_FILENAME
-    if value == "question":
-        return yaml_dir / QUESTION_YAML_FILENAME
+    filename = WORKFLOW_YAML_FILES.get(value)
+    if filename is not None:
+        return yaml_dir / filename
     return Path(value).expanduser()
 
 

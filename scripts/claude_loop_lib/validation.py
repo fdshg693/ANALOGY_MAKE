@@ -19,10 +19,8 @@ import yaml
 from claude_loop_lib.workflow import (
     ALLOWED_DEFAULTS_KEYS,
     ALLOWED_STEP_KEYS,
-    FULL_YAML_FILENAME,
-    ISSUE_PLAN_YAML_FILENAME,
+    AUTO_TARGET_YAMLS,
     OVERRIDE_STRING_KEYS,
-    QUICK_YAML_FILENAME,
 )
 
 
@@ -67,12 +65,10 @@ def _resolve_target_yamls(
     args: argparse.Namespace,  # noqa: ARG001 - kept for future extensibility
     yaml_dir: Path,
 ) -> list[Path]:
+    # auto モードは /issue_plan を phase1 に、phase2 で選択されうる YAML を
+    # 起動時に一括検証する（workflow.py の AUTO_TARGET_YAMLS が一次情報源）。
     if resolved == "auto":
-        return [
-            yaml_dir / ISSUE_PLAN_YAML_FILENAME,
-            yaml_dir / FULL_YAML_FILENAME,
-            yaml_dir / QUICK_YAML_FILENAME,
-        ]
+        return [yaml_dir / name for name in AUTO_TARGET_YAMLS]
     return [resolved if isinstance(resolved, Path) else Path(resolved)]
 
 

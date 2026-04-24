@@ -89,3 +89,20 @@ IMPLEMENT.md R4 では `signal.raise_signal(signal.SIGTERM)` を使う end-to-en
 
 - `scripts/README.md` / `scripts/USAGE.md`: 本版で完了通知節を追加。今後 `--notify-style` 追加時に更新
 - `docs/util/MASTER_PLAN/PHASE7.1.md`: 本版で §4 を「実装済み」に更新済み
+
+---
+
+## wrap_up 対応結果（2026-04-24）
+
+| 項目 | 判定 | 処置 |
+|---|---|---|
+| T1 PoC スキップ（計画乖離） | ⏭️ 対応不要 | MEMO に記録済み・正当な判断 |
+| R4 テスト戦略変更（計画乖離） | ⏭️ 対応不要 | MEMO に記録済み |
+| R1（toast 永続化 検証先送り） | ⏭️ 対応不要 | ISSUE 起票済み（`toast-persistence-verification.md`） |
+| R2〜R6・timeout（検証済み / 対象外） | ⏭️ 対応不要 | 各判定結果が MEMO に記録済み |
+| `_notify_beep` の `print()` 違反 | 📋 先送り | `ISSUES/util/low/notify-beep-print-violation.md` 新規起票 |
+| auto モードの loop カウント意味論 | 📋 先送り | `ISSUES/util/low/auto-loop-count-semantics.md` 新規起票 |
+| run summary verbosity フラグ | ⏭️ 対応不要（ISSUE 起票なし） | アイデア段階、実運用需要確認前 |
+| `plan-handoff-generation-followup.md`（ISSUE 整理） | ✅ done/ 移動 | ver15.4 で PLAN_HANDOFF.md 生成確認済み |
+| `plan-handoff-frontmatter-drift.md` | ⏭️ 観察継続 | ver15.4 の ROUGH_PLAN/PLAN_HANDOFF frontmatter 一致確認 |
+| `plan-handoff-omission-tracking.md` | ⏭️ 観察継続 | full バージョンのため省略判断なし |

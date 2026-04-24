@@ -32,6 +32,7 @@
 - `experiments/` — 実験スクリプト（tsx で実行）
 - `.github/workflows/` — CI/CD（GitHub Actions）
 - `ISSUES/` — 課題管理（カテゴリ別 → 優先度別: `{category}/high/`, `medium/`, `low/`）。`ISSUES/README.md` にフロントマター仕様（`status` / `assigned` / `reviewed_at`）を定義。`python scripts/issue_status.py` で分布確認、`python scripts/issue_worklist.py` で AI 向け着手候補を一覧取得。人間への依頼は `assigned: human` / `status: need_human_action` を付けて同ディレクトリに集約する（ver13.0 で `REQUESTS/AI` `REQUESTS/HUMAN` を廃止）
+- `QUESTIONS/` — 調査依頼管理（実装を伴わず報告書を返す調査専用 queue）。`QUESTIONS/README.md` に frontmatter 仕様を定義。`python scripts/question_status.py` で分布確認、`python scripts/question_worklist.py` で着手候補を一覧取得。`--workflow question` で `question_research` SKILL が 1 件選定し `docs/{category}/questions/{slug}.md` に報告書を出力する
 - `FEEDBACKS/` — ワークフローへのユーザーフィードバック（YAML frontmatter で対象ステップ指定、消費後 `done/` へ移動）
 - `infra/` — Azure インフラ定義（Bicep テンプレート）
 - `Justfile` — Azure CLI 運用コマンド（ログ確認・再起動・SSH 等）+ インフラ管理コマンド（デプロイ・プレビュー・削除）
@@ -39,6 +40,7 @@
   - `{category}/MASTER_PLAN.md` — カテゴリごとの概要設計
   - `{category}/DEV_NOTES.md` — 開発メモ
   - `{category}/ver{N}/` — バージョン別ドキュメント
+  - `{category}/questions/` — `question_research` SKILL の調査報告書出力先（`{slug}.md`）
 
 ## バージョン管理規則
 

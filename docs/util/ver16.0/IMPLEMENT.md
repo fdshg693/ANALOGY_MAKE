@@ -517,11 +517,11 @@ mock は使わず既存方式踏襲（`--dry-run` で claude CLI 実行はスキ
 
 handoff の指示（`/wrap_up` で 1 項目ずつ達成判定できるよう）に従い、IMPLEMENT.md 末尾に PHASE8.0 §1-2 の 5 完了条件を転記する（PHASE8.0.md 確定後に埋める）:
 
-- [ ] 条件1: `--workflow research` 明示起動が動作する
-- [ ] 条件2: `--workflow auto` で ROUGH_PLAN frontmatter `workflow: research` が選ばれた時に `claude_loop_research.yaml` が実行される
-- [ ] 条件3: `question` / `research` の責務境界が docs / SKILL / README で明示されている
-- [ ] 条件4: `RESEARCH.md` / `EXPERIMENT.md` が後続 `/imple_plan` から入力として利用可能
-- [ ] 条件5: `experiments/` 運用ルール（`experiments/README.md`）が存在する
+- [x] 条件1: `--workflow research` 明示起動が動作する
+- [x] 条件2: `--workflow auto` で ROUGH_PLAN frontmatter `workflow: research` が選ばれた時に `claude_loop_research.yaml` が実行される
+- [x] 条件3: `question` / `research` の責務境界が docs / SKILL / README で明示されている
+- [x] 条件4: `RESEARCH.md` / `EXPERIMENT.md` が後続 `/imple_plan` から入力として利用可能
+- [x] 条件5: `experiments/` 運用ルール（`experiments/README.md`）が存在する
 
 ※ 条件文は PHASE8.0.md §1-2 の実文から転記する必要あり。`/wrap_up` で確認すること。
 

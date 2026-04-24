@@ -6,7 +6,7 @@
 
 | 節 | 内容 | 状態 | 想定バージョン |
 |---|---|---|---|
-| §1 | 調査・実験を挟む実装 workflow（仮称 `research`）追加 | 未着手 | ver16.0 |
+| §1 | 調査・実験を挟む実装 workflow（仮称 `research`）追加 | ✅ 実装済み（ver16.0、2026-04-24） | ver16.0 |
 | §2 | 長時間コマンドを登録・委譲・再開する deferred execution 追加 | 未着手 | ver16.1 |
 | §3 | step 単位の token/cost 計測と workflow 比較ログ追加 | 未着手 | ver16.2 |
 
@@ -36,7 +36,7 @@ PHASE8.0 の主眼は 3 つある。第 1 に、`quick` / `full` / `question` / 
 
 ## やること
 
-### 1. 調査・実験を挟む実装 workflow（仮称 `research`）を追加する
+### 1. 調査・実験を挟む実装 workflow（仮称 `research`）を追加する（**ver16.0 で実装済み、2026-04-24**）
 
 #### 1-1. 役割
 

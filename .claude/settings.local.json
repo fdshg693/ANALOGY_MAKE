@@ -23,7 +23,6 @@
     ]
   },
   "plansDirectory": "./.claude/plans",
-  "autoMemoryDirectory": "C:/CodeRoot/ANALOGY_MAKE/.claude/memory",
   "hooks": {
     "PermissionRequest": [
       {

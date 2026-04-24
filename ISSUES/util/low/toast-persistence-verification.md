@@ -1,8 +1,8 @@
 ---
-status: review
+status: ready
 assigned: ai
 priority: low
-reviewed_at: 2026-04-24
+reviewed_at: "2026-04-24"
 ---
 
 # Windows toast 永続表示挙動の実機目視検証

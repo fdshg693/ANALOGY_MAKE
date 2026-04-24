@@ -1,8 +1,8 @@
 ---
-status: raw
+status: ready
 assigned: ai
 priority: low
-reviewed_at: "2026-04-24"
+reviewed_at: "2026-04-25"
 ---
 
 # ready/ai 長期持ち越し ISSUE の再判定ルートを issue_review SKILL に追加

@@ -29,6 +29,7 @@ user-invocable: true
 
 - production コード（`app/` / `server/` / `scripts/`）への変更
 - 長時間コマンドの本 step 内での同期実行（5 分超）は **ver16.1 の deferred execution 機構が未実装のため本版では許容するが**、該当仮説は `未検証` として `EXPERIMENT.md` の「判断」に明記する
+- **nested `claude` / `claude -r` / `claude -p` の subprocess 起動**: 本 step は `research` workflow 内で `claude -p` として同期実行されているため、そこから更に `claude` を呼ぶと (a) 親 workflow の `--session-id` と衝突し、(b) `research` workflow の観測バイアス（deferred 機構の挙動確認を deferred 未完のまま実施してしまう）、(c) 1 往復数十秒 × 複数発話で同期 5 分境界に達する、の 3 重リスクがある。該当仮説は実走させず `EXPERIMENT.md` の「判断」で **`未検証`** 扱いとし、deferred execution 経路が本番発動する次バージョン以降に先送りする（`experiments/{slug}/README.md` に先送り理由と再開手順草稿を残す）
 
 ## 手順
 

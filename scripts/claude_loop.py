@@ -483,6 +483,37 @@ def main() -> int:
     return exit_code
 
 
+def _execute_single_step(
+    *,
+    command: list[str],
+    cwd: Path,
+    tee: TeeWriter | None,
+    prev_commit: str | None,
+    step_start: float,
+) -> tuple[int, str | None]:
+    """Run one step's subprocess and emit the footer. Returns (exit_code, new_prev_commit)."""
+    if tee is not None:
+        tee.write_line("--- stdout/stderr ---")
+        process = subprocess.Popen(
+            command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+        exit_code = tee.write_process_output(process)
+    else:
+        completed = subprocess.run(command, cwd=cwd, check=False)
+        exit_code = completed.returncode
+
+    duration_str = format_duration(time.monotonic() - step_start)
+
+    if tee is not None:
+        tee.write_line(f"--- end (exit: {exit_code}, duration: {duration_str}) ---")
+        current_commit = get_head_commit(cwd)
+        if current_commit and prev_commit and current_commit != prev_commit:
+            tee.write_line(f"Commit: {prev_commit} -> {current_commit}")
+        return exit_code, current_commit
+
+    return exit_code, prev_commit
+
+
 def _run_steps(
     step_iter,
     steps: list[dict[str, Any]],
@@ -617,28 +648,13 @@ def _run_steps(
             previous_session_id = session_id
             continue
 
-        # --- Execute step ---
-        if tee is not None:
-            _out("--- stdout/stderr ---")
-            process = subprocess.Popen(
-                command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            )
-            exit_code = tee.write_process_output(process)
-        else:
-            completed = subprocess.run(command, cwd=cwd, check=False)
-            exit_code = completed.returncode
-
-        step_duration = time.monotonic() - step_start
-        duration_str = format_duration(step_duration)
-
-        # --- Step footer ---
-        if tee is not None:
-            _out(f"--- end (exit: {exit_code}, duration: {duration_str}) ---")
-            # Check for commit change
-            current_commit = get_head_commit(cwd)
-            if current_commit and prev_commit and current_commit != prev_commit:
-                _out(f"Commit: {prev_commit} -> {current_commit}")
-            prev_commit = current_commit
+        exit_code, prev_commit = _execute_single_step(
+            command=command,
+            cwd=cwd,
+            tee=tee,
+            prev_commit=prev_commit,
+            step_start=step_start,
+        )
 
         # --- Handle failure ---
         if exit_code != 0:

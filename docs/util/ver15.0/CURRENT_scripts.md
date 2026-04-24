@@ -1,6 +1,6 @@
 # CURRENT_scripts: util ver15.0 — Python スクリプトと YAML ワークフロー定義
 
-`scripts/` 配下のユーティリティスクリプト・YAML ワークフロー定義・Python テスト。ver15.0 では `claude_loop_lib/workflow.py` に `SCOUT_YAML_FILENAME` 定数追加・`claude_loop_scout.yaml` 新規作成・`scripts/README.md` / `scripts/USAGE.md` に scout 節追記・テストに 3 件追加を行った。
+`scripts/` 配下のユーティリティスクリプト・YAML ワークフロー定義・Python テスト。ver15.0 では `claude_loop_lib/workflow.py` に `SCOUT_YAML_FILENAME` 定数追加・`claude_loop_scout.yaml` 新規作成・`scripts/README.md` / `scripts/USAGE.md` に scout 節追記・テストに 3 件追加を行った。ver15.2 では `QUESTION_YAML_FILENAME` 定数追加・`RESERVED_WORKFLOW_VALUES` に `"question"` 追加・`resolve_workflow_value()` に question 分岐追加・`claude_loop_question.yaml` 新規作成・`claude_loop_lib/questions.py` / `question_status.py` / `question_worklist.py` 新規追加・テストに 16 件追加（252 件）を行った。
 
 ## ファイル一覧
 
@@ -15,6 +15,7 @@
 | `scripts/claude_loop_lib/feedbacks.py` | 61 | フィードバックファイルのロード・消費 |
 | `scripts/claude_loop_lib/frontmatter.py` | 42 | 共通 `parse_frontmatter(text) -> (dict|None, str)` 実装 |
 | `scripts/claude_loop_lib/issues.py` | 53 | ISSUE frontmatter の共通ヘルパ（`VALID_STATUS` / `VALID_ASSIGNED` / `VALID_COMBOS` / `extract_status_assigned`） |
+| `scripts/claude_loop_lib/questions.py` | — | **ver15.2 新規。** Question frontmatter の共通ヘルパ（`issues.py` 並列実装。`review` ステータス不在が主な差分） |
 | `scripts/claude_loop_lib/logging_utils.py` | 57 | TeeWriter・ログパス生成・ステップヘッダ表示・duration フォーマット |
 | `scripts/claude_loop_lib/git_utils.py` | 40 | git HEAD 取得・未コミット検出・自動コミット |
 | `scripts/claude_loop_lib/notify.py` | 43 | Windows toast 通知・beep フォールバック |
@@ -22,9 +23,12 @@
 | `scripts/claude_loop_quick.yaml` | 32 | 軽量ワークフロー定義（3 ステップ）。ver15.0 で NOTE コメントを 4-way sync に更新 |
 | `scripts/claude_loop_issue_plan.yaml` | 22 | `/issue_plan` 単独実行用 YAML。ver15.0 で NOTE コメントを 4-way sync に更新 |
 | `scripts/claude_loop_scout.yaml` | 23 | **ver15.0 新規。** `/issue_scout` 単独実行用 YAML（能動探索 workflow） |
+| `scripts/claude_loop_question.yaml` | — | **ver15.2 新規。** `/question_research` 単独実行用 YAML（調査専用 workflow、`auto` に混入しない） |
 | `scripts/claude_sync.py` | 58 | `.claude/` ⇔ `.claude_sync/` 同期 |
 | `scripts/issue_status.py` | 93 | `ISSUES/{category}/{high,medium,low}/*.md` の `status × assigned` 分布を表示 |
 | `scripts/issue_worklist.py` | 163 | `--limit N` オプション付き ISSUE 絞り込み。デフォルト `--status ready,review`（`raw` は除外） |
+| `scripts/question_status.py` | — | **ver15.2 新規。** `QUESTIONS/{category}/{high,medium,low}/*.md` の `status × assigned` 分布を表示（`issue_status.py` 並列） |
+| `scripts/question_worklist.py` | — | **ver15.2 新規。** `--limit N` オプション付き Question 絞り込み。デフォルト `--status ready`（`review` は不在のため `ready,review` 形式なし） |
 | `scripts/README.md` | 189 | 概要・ファイル一覧・クイックスタート。ver15.0 で「フル/quick の使い分け」節の直後に「scout（能動探索）」節を追加 |
 | `scripts/USAGE.md` | 263 | CLI オプション一覧・YAML 仕様詳細・ログ読解・拡張ガイド。ver15.0 で「YAML ワークフロー仕様」節末尾に scout YAML サンプル追加（3 ファイル同期 → 4 ファイル同期に記述更新） |
 
@@ -55,9 +59,9 @@
 
 ## YAML ワークフロー定義
 
-### 4 ファイル同期義務
+### 5 ファイル同期義務
 
-`claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` / `claude_loop_scout.yaml` の `command` / `defaults` セクションは常に同一内容を維持する（ver15.0 で 3 ファイル → 4 ファイル同期に拡張）。
+`claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` / `claude_loop_scout.yaml` / `claude_loop_question.yaml` の `command` / `defaults` セクションは常に同一内容を維持する（ver15.0 で 4 ファイル同期、ver15.2 で 5 ファイル同期に拡張）。
 
 ### `scripts/claude_loop.yaml`（フル）のステップ別設定
 
@@ -84,6 +88,14 @@
 |---|---|---|---|
 | issue_scout | opus | high | false（単一ステップ、session 引き継ぎ不要） |
 
+### `scripts/claude_loop_question.yaml`（question）のステップ別設定
+
+**ver15.2 新規。** `--workflow question` で起動する opt-in 調査専用 workflow。`--workflow auto` には混入しない。
+
+| ステップ | model | effort | continue |
+|---|---|---|---|
+| question_research | opus | high | false（単一ステップ、session 引き継ぎ不要） |
+
 ## `scripts/claude_loop.py` の主要構成
 
 ### `main()` のフロー
@@ -95,6 +107,7 @@ parse_args()
        ├─ "full" → scripts/claude_loop.yaml
        ├─ "quick" → scripts/claude_loop_quick.yaml
        ├─ "scout" → scripts/claude_loop_scout.yaml   ← ver15.0 追加
+       ├─ "question" → scripts/claude_loop_question.yaml ← ver15.2 追加
        └─ other → Path(value).expanduser()
   └─ validate_auto_args()
   └─ _resolve_uncommitted_status()
@@ -105,7 +118,7 @@ parse_args()
        └─ resolved は Path → _execute_yaml()
 ```
 
-`_run_auto()` は `"scout"` を**参照しない**（auto 経路に scout が混入しない保証）。
+`_run_auto()` は `"scout"` / `"question"` を**参照しない**（auto 経路に scout / question が混入しない保証）。
 
 ## 自動化時の制約
 

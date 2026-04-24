@@ -40,15 +40,13 @@
 - ⚠️ `npx nuxi typecheck` — vue-router volar の MODULE_NOT_FOUND エラーが出る（CLAUDE.md 「開発上の注意」に「vue-router volar 関連の既知警告あり（ビルド・実行に影響なし）」と明記済み。本バージョンの変更は Python / YAML / Markdown のみで TypeScript 影響なし）
 - ✅ `pnpm test` — 本バージョン変更は Python のみのため対象外（フロントエンドテストは Python 変更で動かない）
 
-## ドキュメント更新提案（`/wrap_up` / `/write_current` への引き継ぎ）
+## ドキュメント更新提案（`/wrap_up` 対応結果）
 
-- `docs/util/MASTER_PLAN/PHASE7.1.md` の進捗表で §2 を「実装済み（ver15.2）」に更新する
-- `docs/util/ver15.0/CURRENT_scripts.md`（および `CURRENT.md` 本体）に以下を追記する候補:
-  - `claude_loop_lib/questions.py` の責務（`issues.py` の Question 用並列実装、`review` 不在の差分）
-  - `question_status.py` / `question_worklist.py` の存在
-  - `claude_loop_question.yaml` と `question` workflow 入口
-  - `QUESTIONS/` queue（`ISSUES/` との境界）
-- `docs/util/ver15.0/CURRENT_skills.md` に `question_research` SKILL の追記（5 セクション報告書 / done 移動 vs need_human_action 戻し / 1 ステップ opus high）
+- ✅ `docs/util/MASTER_PLAN/PHASE7.1.md` — §2 を「実装済み（ver15.2）」に更新
+- ✅ `docs/util/ver15.0/CURRENT_scripts.md` — `claude_loop_question.yaml` / `questions.py` / `question_status.py` / `question_worklist.py` を追記。5 ファイル同期義務に更新。question workflow step 表・フロー図分岐を追加
+- ✅ `docs/util/ver15.0/CURRENT_skills.md` — 「調査専用ワークフロー question（1 ステップ）」節を追加（`question_research/SKILL.md` の構成記述）。rules.md 行の注釈を「ver15.2 で 5 ファイルに更新済み」に修正
+- ⏭️ R2 help テキスト改善: 対応不要（cosmetic 差分、MEMO.md に先送り根拠記録済み、ISSUE 起票なし）
+- ⏭️ R8 サンプル Question 投入: dry-run smoke 確認済みのため先送り。初回実走は実際の Question 起票時に自然に行われる
 
 ## 後続バージョンへの引き継ぎ
 

@@ -61,3 +61,12 @@ SKILL 拡張時（将来版）に触れるファイル:
 - `docs/util/ver16.2/FEEDBACKS/` 該当 handoff（handoff 発端元）
 - `ISSUES/util/medium/issue-review-rewrite-verification.md`（5 バージョン連続持ち越しの代表例）
 - `ISSUES/util/low/toast-persistence-verification.md`（5 バージョン連続持ち越しの代表例）
+
+## AI からの依頼（ver16.3 RETROSPECTIVE 追記）
+
+ver16.3 RETROSPECTIVE §A で実運用を観察した結果、本 ISSUE が提起する構造問題（`ready/ai` 長期持ち越しを検出・降格するルートの不在）は実害として持続していることが裏付けられた:
+
+- ver16.3 `/issue_plan` 時点でも `ready/ai` 3 件中 2 件（`issue-review-rewrite-verification` / `toast-persistence-verification`）が 5 バージョン連続持ち越し
+- `/issue_plan` の review フェーズが `review / ai` のみを対象とする現行仕様では降格ルート自体が存在しないため、`ready/ai` のまま機械的に再掲され続ける
+
+次回 `/issue_plan` 時、本 ISSUE を `review/ai` 経由 `ready/ai` に昇格させる方針を明示的に支持する。昇格後の実装版で、上記「対応方針（設計提案）」3 要素のうち最小構成（スキャン対象拡張 + 5 バージョン「要再判定」警告のみ、強制降格は後続版）から着手する案を推奨する。

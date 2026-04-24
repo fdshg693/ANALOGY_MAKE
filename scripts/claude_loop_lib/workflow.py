@@ -11,6 +11,7 @@ import yaml
 
 FULL_YAML_FILENAME = "claude_loop.yaml"
 QUICK_YAML_FILENAME = "claude_loop_quick.yaml"
+RESEARCH_YAML_FILENAME = "claude_loop_research.yaml"
 ISSUE_PLAN_YAML_FILENAME = "claude_loop_issue_plan.yaml"
 SCOUT_YAML_FILENAME = "claude_loop_scout.yaml"
 QUESTION_YAML_FILENAME = "claude_loop_question.yaml"
@@ -19,6 +20,7 @@ QUESTION_YAML_FILENAME = "claude_loop_question.yaml"
 WORKFLOW_YAML_FILES: dict[str, str] = {
     "full": FULL_YAML_FILENAME,
     "quick": QUICK_YAML_FILENAME,
+    "research": RESEARCH_YAML_FILENAME,
     "scout": SCOUT_YAML_FILENAME,
     "question": QUESTION_YAML_FILENAME,
 }
@@ -31,6 +33,7 @@ AUTO_TARGET_YAMLS: tuple[str, ...] = (
     ISSUE_PLAN_YAML_FILENAME,
     FULL_YAML_FILENAME,
     QUICK_YAML_FILENAME,
+    RESEARCH_YAML_FILENAME,
 )
 
 OVERRIDE_STRING_KEYS: tuple[str, ...] = (

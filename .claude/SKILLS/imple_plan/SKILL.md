@@ -21,12 +21,24 @@ user-invocable: true
 
 （例: 最新バージョンが 13.2 なら `ver13.0/CURRENT.md` → `ver13.1/CHANGES.md` → `ver13.2` が今回の作業フォルダ）
 
+## 入力読み込み
+
+実装に入る前に、以下を確認する:
+
+- **`REFACTOR.md`** — 存在すれば、これに基づき事前リファクタを行う
+- **`IMPLEMENT.md`** — 実装計画の一次情報源
+- **`RESEARCH.md`**（`workflow: research` の場合のみ存在） — 「確定」とされた事実は `IMPLEMENT.md` の実装計画に反映する
+- **`EXPERIMENT.md`**（`workflow: research` の場合のみ存在） — 「判断」節の確定事項を実装方式選定に反映する
+
+`RESEARCH.md` / `EXPERIMENT.md` は `workflow: full` / `quick` では存在しない。**存在しなくてもエラーにしない**（条件分岐で無視）。
+
 ## 実装
 
 以下を順番に行ってください。
 
 1. 最新バージョンフォルダ配下の `REFACTOR.md` が存在すれば参照して、リファクタを行う（存在しない場合はスキップ）
 2. 次に、 `IMPLEMENT.md` があれば参照して、実装を行う
+   - `RESEARCH.md` / `EXPERIMENT.md` の確定事項があれば、`IMPLEMENT.md` の「実験判断待ち」マーカー箇所を解決してから進む
 
 ### 実装品質ガイドライン
 

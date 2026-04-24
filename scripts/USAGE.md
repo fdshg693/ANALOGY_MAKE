@@ -127,19 +127,20 @@ string 型のみ。`None` は未指定扱い、空文字列はエラー。
 
 1. `scripts/claude_loop_issue_plan.yaml` で `/issue_plan` を実行
 2. `docs/{category}/ver*/ROUGH_PLAN.md` の最新 mtime ファイルを開き frontmatter の `workflow:` を読む
-3. `quick` → `claude_loop_quick.yaml` の `steps[1:]`、`full` → `claude_loop.yaml` の `steps[1:]` を実行
+3. `quick` → `claude_loop_quick.yaml` の `steps[1:]`、`full` → `claude_loop.yaml` の `steps[1:]`、`research` → `claude_loop_research.yaml` の `steps[1:]` を実行
 4. `workflow:` 未記載・不正値 → `full` にフォールバック（警告を log/stderr に出力）
 5. `--workflow auto` と `--start N>1` は併用不可（エラー終了）
 6. `--workflow auto --dry-run` 併用時はフェーズ 1 のコマンドのみ表示し、フェーズ 2 はスキップ
 
-**起動前 validation**: step 1 実行より前に、対象となる全 YAML（`--workflow auto` では 3 本すべて）に対して validation が走る。1 件でも error があれば exit code 2 で終了し、step は実行されない（`--dry-run` 時も実行される）。詳細は [`README.md` 「起動前 validation」節](README.md) を参照。
+**起動前 validation**: step 1 実行より前に、対象となる全 YAML（`--workflow auto` では 4 本すべて — `issue_plan` / `full` / `quick` / `research`）に対して validation が走る。1 件でも error があれば exit code 2 で終了し、step は実行されない（`--dry-run` 時も実行される）。詳細は [`README.md` 「起動前 validation」節](README.md) を参照。
 
-`command` / `defaults` セクションは `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` / `claude_loop_scout.yaml` / `claude_loop_question.yaml` の 5 ファイルで同一内容を維持する必要がある（いずれかを変更した場合は必ず 5 ファイル全てを同期すること）。
+`command` / `defaults` セクションは `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_research.yaml` / `claude_loop_issue_plan.yaml` / `claude_loop_scout.yaml` / `claude_loop_question.yaml` の 6 ファイルで同一内容を維持する必要がある（いずれかを変更した場合は必ず 6 ファイル全てを同期すること）。
 
 ### サンプル YAML
 
 - フル: [`claude_loop.yaml`](claude_loop.yaml) — 6 ステップ（`issue_plan` → `split_plan` → `imple_plan` → `wrap_up` → `write_current` → `retrospective`）
 - 軽量: [`claude_loop_quick.yaml`](claude_loop_quick.yaml) — 3 ステップ（`issue_plan` → `quick_impl` → `quick_doc`）
+- 調査・実験（ver16.0 追加）: [`claude_loop_research.yaml`](claude_loop_research.yaml) — 8 ステップ（`issue_plan` → `split_plan` → `research_context` → `experiment_test` → `imple_plan` → `wrap_up` → `write_current` → `retrospective`）。`--workflow research` で明示起動、または `--workflow auto` 時に ROUGH_PLAN frontmatter `workflow: research` で選択される
 - issue_plan 単独: [`claude_loop_issue_plan.yaml`](claude_loop_issue_plan.yaml) — 1 ステップ（`issue_plan` のみ）。`--workflow auto` の第 1 段でも使用される
 - scout（能動探索、ver15.0 追加）: [`claude_loop_scout.yaml`](claude_loop_scout.yaml) — 1 ステップ（`issue_scout` のみ）。`--workflow scout` で明示起動。`--workflow auto` には自動混入しない
 - question（調査専用、ver15.2 追加）: [`claude_loop_question.yaml`](claude_loop_question.yaml) — 1 ステップ（`question_research` のみ）。`--workflow question` で明示起動。`QUESTIONS/` 専属で `--workflow auto` には自動混入しない

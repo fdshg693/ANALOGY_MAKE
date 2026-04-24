@@ -235,6 +235,21 @@ class TestAutoWorkflowIntegration(unittest.TestCase):
         assert "/quick_impl" in commands[1]
         assert "/quick_doc" in commands[2]
 
+    def test_auto_runs_issue_plan_then_research(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self._setup_cwd(cwd, "research")
+            exit_code, commands = self._run_main_auto(cwd)
+        assert exit_code == 0
+        # Phase 1: 1 call + Phase 2: research has 8 steps, steps[1:] = 7 steps
+        assert len(commands) == 8
+        assert "/issue_plan" in commands[0]
+        assert "/split_plan" in commands[1]
+        assert "/research_context" in commands[2]
+        assert "/experiment_test" in commands[3]
+        assert "/imple_plan" in commands[4]
+        assert "/retrospective" in commands[-1]
+
     def test_auto_phase1_failure_aborts(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)

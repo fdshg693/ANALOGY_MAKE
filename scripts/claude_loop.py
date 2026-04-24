@@ -20,7 +20,8 @@ from claude_loop_lib.workflow import (
     load_workflow, get_steps, resolve_defaults,
     resolve_command_config,
     resolve_workflow_value,
-    FULL_YAML_FILENAME, QUICK_YAML_FILENAME, ISSUE_PLAN_YAML_FILENAME,
+    ISSUE_PLAN_YAML_FILENAME,
+    WORKFLOW_YAML_FILES,
 )
 from claude_loop_lib.frontmatter import parse_frontmatter
 from claude_loop_lib.feedbacks import load_feedbacks, consume_feedbacks
@@ -90,7 +91,10 @@ def parse_args() -> argparse.Namespace:
         "--workflow",
         type=str,
         default="auto",
-        help="Workflow selector: 'auto' (default) | 'full' | 'quick' | path to a YAML file",
+        help=(
+            "Workflow selector: 'auto' (default) | 'full' | 'quick' | 'research' | "
+            "'scout' | 'question' | path to a YAML file"
+        ),
     )
     parser.add_argument(
         "-s",
@@ -207,8 +211,8 @@ def _find_latest_rough_plan(cwd: Path, mtime_threshold: float | None = None) -> 
 def _read_workflow_kind(rough_plan: Path) -> str:
     """Read the `workflow:` frontmatter value from a ROUGH_PLAN.md.
 
-    Returns "full" or "quick". Falls back to "full" with a warning on any
-    error (missing frontmatter / missing key / invalid value).
+    Returns "full", "quick", or "research". Falls back to "full" with a
+    warning on any error (missing frontmatter / missing key / invalid value).
     """
     text = rough_plan.read_text(encoding="utf-8")
     fm, _body = parse_frontmatter(text)
@@ -219,7 +223,7 @@ def _read_workflow_kind(rough_plan: Path) -> str:
         )
         return "full"
     value = fm.get("workflow")
-    if value not in ("quick", "full"):
+    if value not in ("quick", "full", "research"):
         print(
             f"WARNING: invalid workflow={value!r} in {rough_plan}; falling back to 'full'.",
             file=sys.stderr,
@@ -359,9 +363,9 @@ def _run_auto(
 
     rough_plan = _find_latest_rough_plan(cwd, mtime_threshold=mtime_threshold)
     phase2_kind = _read_workflow_kind(rough_plan)
-    phase2_yaml = yaml_dir / (
-        QUICK_YAML_FILENAME if phase2_kind == "quick" else FULL_YAML_FILENAME
-    )
+    # phase2_kind は _read_workflow_kind により "quick" / "full" / "research" のいずれか。
+    # WORKFLOW_YAML_FILES を経由することで workflow 値が増えても分岐追加が不要。
+    phase2_yaml = yaml_dir / WORKFLOW_YAML_FILES[phase2_kind]
 
     _out("")
     _out(f"--- auto: phase2 = {phase2_kind} ({phase2_yaml.name}) ---")

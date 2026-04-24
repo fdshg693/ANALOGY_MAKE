@@ -22,6 +22,7 @@
 | `claude_loop_lib/` | ワークフロー実行に必要な関数群をモジュール分割したパッケージ |
 | `claude_loop.yaml` | フルワークフロー（6 ステップ）定義 |
 | `claude_loop_quick.yaml` | 軽量ワークフロー（3 ステップ）定義 |
+| `claude_loop_research.yaml` | 調査・実験ワークフロー（8 ステップ）定義。`/research_context` / `/experiment_test` を挟む |
 | `claude_loop_issue_plan.yaml` | `/issue_plan` 単独実行用 YAML（`--workflow auto` の第 1 段でも使用） |
 | `claude_loop_scout.yaml` | `--workflow scout` で起動する能動 ISSUE 探索 YAML（1 ステップ、`auto` 非混入） |
 | `claude_loop_question.yaml` | `--workflow question` で起動する調査専用 YAML（1 ステップ、`auto` 非混入） |
@@ -61,9 +62,10 @@
 # デフォルト（= --workflow auto、/issue_plan の判定に従って full/quick 自動選択）
 python scripts/claude_loop.py
 
-# 明示的に full/quick を指定
+# 明示的に full/quick/research を指定
 python scripts/claude_loop.py --workflow full
 python scripts/claude_loop.py --workflow quick
+python scripts/claude_loop.py --workflow research
 
 # /issue_plan だけ 1 回回す（SKILL 調整・ISSUE レビュー定期実行向け）
 python scripts/claude_loop.py --workflow scripts/claude_loop_issue_plan.yaml
@@ -89,16 +91,39 @@ ver13.0 で `--auto` フラグと YAML の `mode: / command.auto_args` 設定は
 
 `--workflow auto` は別概念（ワークフロー自動選択。`/issue_plan` を先行実行して結果に応じて full/quick を選ぶ）であり、撤去されていない。
 
-## フル/quick の使い分け
+## full / quick / research の使い分け
 
 | 条件 | 推奨 |
 |---|---|
-| MASTER_PLAN の新項目着手・アーキテクチャ変更・新規ライブラリ導入 | full |
+| MASTER_PLAN の新項目着手で外部仕様確認・実装方式実験・長時間検証・隔離環境試行のいずれか 1 つを要する | research |
+| MASTER_PLAN の新項目着手・アーキテクチャ変更・新規ライブラリ導入（research 条件に該当しない） | full |
 | 変更ファイル 4 つ以上、または `ISSUES/*/high` の複雑な対応 | full |
 | 単一 ISSUE 対応・バグ修正（原因特定済み）・既存機能の微調整 | quick |
 | ドキュメント/テスト追加、変更ファイル 3 つ以下 | quick |
 
 テキスト編集のみで各ファイル数行程度の変更なら、4 ファイル以上でも quick を選択してよい。
+
+## research（実装前調査・実験）
+
+`--workflow research` は実装前に調査・実験を正式 step として挟む 8 step workflow（ver16.0 で追加）。`research_context` / `experiment_test` SKILL が `docs/{cat}/ver{X.Y}/RESEARCH.md` / `EXPERIMENT.md` を生成し、後続 `/imple_plan` がそれを入力として実装方式を確定する。
+
+```bash
+python scripts/claude_loop.py --workflow research
+```
+
+8 step 構成: `/issue_plan → /split_plan → /research_context → /experiment_test → /imple_plan → /wrap_up → /write_current → /retrospective`。
+
+`--workflow auto` は `ROUGH_PLAN.md` frontmatter `workflow: research` を検出した場合に phase2 で自動選択する。選定条件・詳細は `.claude/skills/issue_plan/SKILL.md` および `.claude/skills/meta_judge/WORKFLOW.md` §3 を参照。
+
+### `question` / `research` の責務境界
+
+| 観点 | `question` (`QUESTIONS/`) | `research` (`docs/{cat}/ver{X.Y}/RESEARCH.md`) |
+|---|---|---|
+| (a) 最終成果物 | 報告書のみ（`docs/{cat}/questions/{slug}.md`） | **コード変更**（`RESEARCH.md` は中間成果物） |
+| (b) 入力キュー | `QUESTIONS/{cat}/{priority}/` | `ISSUES/{cat}/{priority}/` または MASTER_PLAN |
+| (c) workflow | 調査→報告書で終了（実装に進まない） | 調査→実験→実装→retrospective まで 8 step 完走 |
+
+実験スクリプトの配置規約は [`../experiments/README.md`](../experiments/README.md) を参照。
 
 ## scout（能動探索）
 
@@ -191,7 +216,7 @@ python scripts/claude_sync.py import
 | step.prompt の先頭が `/` の場合、`.claude/skills/<name>/SKILL.md` が存在すること | error |
 | `command` セクションが指定された場合、mapping であること | error |
 
-`--workflow auto` の場合、phase 1 (`claude_loop_issue_plan.yaml`) と phase 2 候補 2 本 (`claude_loop.yaml` / `claude_loop_quick.yaml`) を**すべて事前に検証**する。これにより ROUGH_PLAN.md 生成結果に関わらず「validation 通過 = 最後まで到達可能」という契約が成り立つ。
+`--workflow auto` の場合、phase 1 (`claude_loop_issue_plan.yaml`) と phase 2 候補 3 本 (`claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_research.yaml`) を**すべて事前に検証**する。これにより ROUGH_PLAN.md 生成結果に関わらず「validation 通過 = 最後まで到達可能」という契約が成り立つ。
 
 エラーは可能な範囲で一括収集されて末尾に列挙される（例: YAML A が parse 失敗しても、YAML B 内の step typo はそのまま報告される）。ただし、YAML 単位での parse 失敗や top-level 非 mapping など致命的な段階では当該 YAML の後続検証のみスキップされる。
 

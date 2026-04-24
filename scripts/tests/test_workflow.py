@@ -162,6 +162,11 @@ class TestResolveWorkflowValue(unittest.TestCase):
         result = resolve_workflow_value("question", self.yaml_dir)
         assert result == self.yaml_dir / QUESTION_YAML_FILENAME
 
+    def test_resolve_research_returns_research_yaml_path(self) -> None:
+        from claude_loop_lib.workflow import RESEARCH_YAML_FILENAME
+        result = resolve_workflow_value("research", self.yaml_dir)
+        assert result == self.yaml_dir / RESEARCH_YAML_FILENAME
+
     def test_reserved_values_match_resolve_workflow_if_chain(self) -> None:
         """Drift-guard: every RESERVED_WORKFLOW_VALUES entry must resolve cleanly."""
         for value in RESERVED_WORKFLOW_VALUES:

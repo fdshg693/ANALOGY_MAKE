@@ -118,6 +118,10 @@ class TestParseArgsWorkflow(unittest.TestCase):
         result = self._parse(["-w", "quick"])
         assert result.workflow == "quick"
 
+    def test_explicit_research_reserved(self) -> None:
+        result = self._parse(["-w", "research"])
+        assert result.workflow == "research"
+
     def test_explicit_path(self) -> None:
         result = self._parse(["-w", "custom.yaml"])
         assert result.workflow == "custom.yaml"
@@ -161,6 +165,11 @@ class TestReadWorkflowKind(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             p = self._write(Path(td), "---\nworkflow: full\n---\nbody\n")
             assert _read_workflow_kind(p) == "full"
+
+    def test_valid_research_returns_research(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = self._write(Path(td), "---\nworkflow: research\n---\nbody\n")
+            assert _read_workflow_kind(p) == "research"
 
     def test_missing_frontmatter_falls_back_to_full_with_warning(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -24,7 +24,7 @@ user-invocable: true
 - `status: ready` / `assigned: ai` の ISSUE 優先選定（優先度順 high → medium → low）
 - MASTER_PLAN 新項目への着手判断（ready/ai が無い場合）
 - `docs/{カテゴリ}/ver{次バージョン}/ROUGH_PLAN.md` と `PLAN_HANDOFF.md` を作成する
-- ROUGH_PLAN.md 冒頭 frontmatter に `workflow: quick | full` と `source: issues | master_plan` を記録する（`PLAN_HANDOFF.md` 側にも同値で同期する）
+- ROUGH_PLAN.md 冒頭 frontmatter に `workflow: quick | full | research` と `source: issues | master_plan` を記録する（`PLAN_HANDOFF.md` 側にも同値で同期する）
 - **review は行わない**（plan_review_agent は起動しない）
 
 ## 準備
@@ -63,14 +63,19 @@ user-invocable: true
 
 判定結果に基づいて、新しい空の `docs/{カテゴリ}/ver{次のバージョン番号}` フォルダを作成してください。
 
-## ワークフロー選択（`workflow: quick | full`）
+## ワークフロー選択（`workflow: quick | full | research`）
 
 選定 ISSUE・タスクの性質に応じて以下ルールで決定する:
 
 - 選定 ISSUE に `status: review` が 1 件でも含まれる場合 → **必ず `full`**
-- MASTER_PLAN 新項目 / アーキテクチャ変更 / 新規ライブラリ導入を含む場合 → **必ず `full`**
+- MASTER_PLAN 新項目 / アーキテクチャ変更 / 新規ライブラリ導入を含み、かつ **以下 4 条件のいずれか 1 つを満たす** 場合 → **`research`**
+  - 外部仕様・公式 docs の確認が主要成果に影響する
+  - 実装方式を実験で絞り込む必要がある
+  - 1 step で 5 分以上を要する実測系の長時間検証が事前に必要
+  - 軽い隔離環境（`experiments/` 配下）での試行が前提
+- MASTER_PLAN 新項目 / アーキテクチャ変更 / 新規ライブラリ導入を含むが、上記 4 条件のいずれも該当しない場合 → **`full`**
 - 全 `ready` で、変更対象が 3 ファイル以下かつ 100 行以下の見込みなら → `quick`
-- 判断に迷う場合 → 安全側で `full`
+- 判断に迷う場合 → 安全側で **`full`**
 
 決定結果を ROUGH_PLAN.md 冒頭の frontmatter に記録する:
 

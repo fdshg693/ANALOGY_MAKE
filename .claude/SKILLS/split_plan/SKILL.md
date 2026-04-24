@@ -16,13 +16,14 @@ user-invocable: true
 
 - 現状把握・ISSUE レビュー・`ROUGH_PLAN.md` と `PLAN_HANDOFF.md` 作成は `/issue_plan` の責務であり、本 SKILL では扱わない
 - ワークフロー内で plan_review_agent を起動するのは本 SKILL のみ
-- ROUGH_PLAN.md frontmatter の `workflow` 値が `quick` の場合、本 SKILL は呼ばれない想定（両 YAML は `/issue_plan → 後続` の設計で、quick には `/split_plan` が含まれない）
+- ROUGH_PLAN.md frontmatter の `workflow` 値が `quick` の場合、本 SKILL は呼ばれない想定（quick YAML には `/split_plan` が含まれない）
+- `workflow: research` の場合も本 SKILL は呼ばれるが、後続の `/research_context` / `/experiment_test` が `IMPLEMENT.md` の「## リスク・不確実性」節を読む前提のため、その節を具体的かつ検証可能な形で書き切ること
 
 ## ステップ1: 実装計画の作成と承認
 
 `/issue_plan` が作成した `ROUGH_PLAN.md`（スコープ定義）と `PLAN_HANDOFF.md`（選定理由・除外理由・関連 ISSUE パス・後続 step への注意点）を読み、対象タスクを固定する（`docs/{カテゴリ}/ver{次のバージョン番号}/ROUGH_PLAN.md` と `PLAN_HANDOFF.md`）。`PLAN_HANDOFF.md` が存在しない場合（`/issue_plan` が handoff 情報ゼロと判定し省略したケース）は `ROUGH_PLAN.md` のみで進めてよい。
 
-ROUGH_PLAN.md frontmatter に `workflow: full` が記録されていることを確認する。`quick` になっている場合は本ステップは実行されるべきでないため、`logs/workflow/` にエラー記録しつつ `ISSUES/{カテゴリ}/high/split-plan-consistency-error-ver{X.Y}.md` を作成（frontmatter: `status: need_human_action` / `assigned: human`）して終了する。
+ROUGH_PLAN.md frontmatter に `workflow: full` または `workflow: research` が記録されていることを確認する。`quick` になっている場合は本ステップは実行されるべきでないため、`logs/workflow/` にエラー記録しつつ `ISSUES/{カテゴリ}/high/split-plan-consistency-error-ver{X.Y}.md` を作成（frontmatter: `status: need_human_action` / `assigned: human`）して終了する。
 
 1. 承認された `ROUGH_PLAN.md` に基づいて、実装計画を作成する
   - **既存ファイルの事前確認**: 変更対象の既存ファイル（ソースコード、設定ファイル、`.gitignore` 等）は、計画に含める前に現在の内容を読んで確認すること。既に対応済みの設定や存在する機能を重複して計画に含めることを防ぐ
@@ -31,6 +32,13 @@ ROUGH_PLAN.md frontmatter に `workflow: full` が記録されていることを
      - 可能な限り実装の詳細に踏み込むこと
 
 2. **plan_review_agentサブエージェントを起動して、実装計画を説明して、承認を得ること**（ここで実装詳細を確定する）
+
+## research workflow 時の追加注意
+
+`workflow: research` の場合、本 SKILL の後続 step は `/research_context` → `/experiment_test` → `/imple_plan` の順に走る。これらは `IMPLEMENT.md` を入力として読むため、以下の点に留意する:
+
+- (a) `IMPLEMENT.md` の「## リスク・不確実性」節は `/research_context` が直接参照する。曖昧な「確認が必要」表現は避け、**何を / どのソースで / どう確認するか** を具体化すること
+- (b) 実験方式が分岐する論点は、`EXPERIMENT.md` が判断する前提で **「実験判断待ち」** マーカーを `IMPLEMENT.md` の該当箇所に残してよい（`/imple_plan` 側で `EXPERIMENT.md` の結果を読み取り確定する）
 
 ## ステップ2: Git にコミットする
 - 作成したドキュメント（`IMPLEMENT.md`、必要なら `REFACTOR.md`）をコミットする

@@ -1,7 +1,8 @@
 # NOTE: --workflow scout で起動する opt-in 能動探索 workflow。
 #       --workflow auto には自動混入しない（validation.py / claude_loop.py の auto 経路で選ばれない）。
 #       The `command` / `defaults` sections must stay in sync with claude_loop.yaml,
-#       claude_loop_quick.yaml, claude_loop_issue_plan.yaml, and claude_loop_question.yaml.
+#       claude_loop_quick.yaml, claude_loop_research.yaml,
+#       claude_loop_issue_plan.yaml, and claude_loop_question.yaml.
 #       Allowed `defaults`/`steps[]` override keys (string-typed):
 #         model, effort, system_prompt, append_system_prompt
 

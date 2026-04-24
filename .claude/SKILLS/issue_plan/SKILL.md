@@ -36,7 +36,7 @@ user-invocable: true
   - `ISSUES/{カテゴリ}` フォルダ配下に優先度の高い課題があれば参照して、把握する（ `high`・`medium`・`low`フォルダに分かれている）
   - 直前バージョンの `RETROSPECTIVE.md` が存在する場合は確認し、未実施の改善提案がないか確認する
   - **retrospective からの FEEDBACK handoff**: `FEEDBACKS/handoff_ver*_to_next.md` が存在する場合、`--append-system-prompt` 経由で自動注入される。ROUGH_PLAN の判断材料として優先度高で参照する（retrospective が次ループ向けに意図的に書き出した補助線であり、感想ではなく次ステップに効く入力として扱う）。本 handoff は次ループで 1 回だけ消費され `FEEDBACKS/done/` に移動するため、恒久メモリではない
-  - **ISSUE レビューフェーズ**: `ISSUES/{カテゴリ}/{high,medium,low}/*.md` を走査し、(a) `status: review` かつ `assigned: ai` の ISSUE を 1 件ずつ Read → 判定 → frontmatter を `ready / ai` または `need_human_action / human` に書き換える、(b) `status: ready` かつ `assigned: ai` のうち `reviewed_at` が 7 日以上前の ISSUE を「再判定推奨」として検出する（frontmatter 書き換えなし）。判定基準・書き換え手順・`## AI からの依頼` 追記の書式・長期持ち越し検出ルールは `.claude/skills/issue_review/SKILL.md` を一次資料とする。レビュー結果サマリ・状態分布・再判定推奨 ISSUE 一覧の 3 ブロックを ROUGH_PLAN 本文冒頭に `## ISSUE レビュー結果` / `## ISSUE 状態サマリ` / `## 再判定推奨 ISSUE` の見出しで残す
+  - **ISSUE レビューフェーズ**: `ISSUES/{カテゴリ}/{high,medium,low}/*.md` を走査し、(a) `status: review` かつ `assigned: ai` の ISSUE を 1 件ずつ Read → 判定 → frontmatter を `ready / ai` または `need_human_action / human` に書き換える、(b) `status: ready` かつ `assigned: ai` のうち `reviewed_at` が 7 日以上前の ISSUE を「再判定推奨」として検出する（frontmatter 書き換えなし）、(c) `status: raw` かつ `assigned: ai` のうち `reviewed_at` が 14 日以上前の ISSUE を「triage 推奨」として検出する（frontmatter 書き換えなし）。判定基準・書き換え手順・`## AI からの依頼` 追記の書式・長期持ち越し / 長期停滞検出ルールは `.claude/skills/issue_review/SKILL.md` を一次資料とする。レビュー結果サマリ・状態分布・再判定推奨 ISSUE 一覧・triage 推奨 raw/ai ISSUE 一覧の 4 ブロックを ROUGH_PLAN 本文冒頭に `## ISSUE レビュー結果` / `## ISSUE 状態サマリ` / `## 再判定推奨 ISSUE` / `## triage 推奨 raw/ai ISSUE` の見出しで残す
 
 - 目標となるプランを把握して
   - ドキュメントが指定されていなければ、 `docs/{カテゴリ}/MASTER_PLAN.md` を参照して、目標となるプランを把握する

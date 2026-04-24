@@ -1,6 +1,6 @@
 ---
 name: issue_review
-description: plan ステップの冒頭で ISSUES/{カテゴリ}/ の review/ai 課題を振り分け、ready/ai 長期持ち越し ISSUE を再判定推奨として一覧する
+description: plan ステップの冒頭で ISSUES/{カテゴリ}/ の review/ai 課題を振り分け、ready/ai 長期持ち越し ISSUE を再判定推奨として一覧し、raw/ai 長期停滞 ISSUE を triage 推奨として一覧する
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -43,6 +43,21 @@ user-invocable: true
 - したがって「`reviewed_at` が 7 日以上前」=「直近 7 日間、`ready/ai` で誰も再判断していない」と読める
 - 持ち越し ISSUE を再判断したい場合は人間 / AI が `ready/ai` → `review/ai` に戻し（または `need_human_action` に降格し）、次回 `/issue_plan` で再評価させる運用となる
 
+### 1.6. 長期停滞 raw/ai の検出（追加スキャン）
+
+§1 と並行して、`status: raw` かつ `assigned: ai` のファイルも走査し、以下条件を満たすものを「triage 推奨」として §5 第 4 ブロックに列挙する:
+
+- `reviewed_at` フィールドが存在し、かつ本日日付との差分が **14 日以上**
+- `reviewed_at` 欠落 ISSUE は対象外（未判定として除外）
+- 閾値 14 日は SKILL 内の既定値。根拠は「raw/ai は `review/ai` よりも triage に長期間要する可能性を含むため、§1.5（7 日）の 2 倍を暫定初期値とする」
+
+**注: 本ルートで検出した ISSUE の frontmatter は一切書き換えない。サマリ報告（§5 第 4 ブロック）への追記のみ。**
+
+`reviewed_at` の意味論補足:
+- `reviewed_at` は ISSUE 登録時または前回レビュー時に記録される。`raw/ai` の場合は AI が自動判定対象として記入した日付が固定される
+- したがって「`reviewed_at` が 14 日以上前」=「直近 14 日間、`raw/ai` で誰も triage していない」と読める
+- triage を進めたい場合は人間 / AI が `raw/ai` → `review/ai` に昇格し、次回 `/issue_plan` で §1 の個別レビューを受けさせる運用となる
+
 ### 2. 個別レビュー
 
 レビュー対象のファイルを 1 件ずつ開き、**必ず Read で全文取得してから Edit する**。
@@ -64,7 +79,7 @@ user-invocable: true
 - 1 セッション内で同じファイルを 2 回以上書き換えない
 - `## AI からの依頼` セクションは、既存であれば置換、無ければ本文末尾に追記
 - git にコミット済みの状態から書き換える前提。誤変更は `git checkout -- <path>` で復旧
-- **長期持ち越し ISSUE の frontmatter は書き換えない**: §1.5 で検出した `ready/ai` 長期持ち越し ISSUE は、§5 第 3 ブロックに列挙するのみで `status` / `assigned` / `reviewed_at` の書き換えを発生させない。降格 / 再判定の最終操作は人間 / AI の手動判断に委ねる
+- **長期持ち越し / 長期停滞 ISSUE の frontmatter は書き換えない**: §1.5 で検出した `ready/ai` 長期持ち越し ISSUE は §5 第 3 ブロックに、§1.6 で検出した `raw/ai` 長期停滞 ISSUE は §5 第 4 ブロックに列挙するのみで `status` / `assigned` / `reviewed_at` の書き換えを発生させない。降格 / 再判定の最終操作は人間 / AI の手動判断に委ねる
 
 ### 4. `## AI からの依頼` の書式
 
@@ -125,6 +140,26 @@ plan 本文末尾に以下の第 3 ブロックを追加する:
 ```
 
 候補理由 A / B はテンプレート固定文。判別自動化は本 SKILL では行わず、最終判断は人間 / `/issue_plan` 側の LLM に委ねる。
+
+plan 本文末尾に以下の第 4 ブロックを追加する:
+
+```markdown
+## triage 推奨 raw/ai ISSUE
+
+長期停滞閾値（既定 14 日）を超えた `raw/ai` ISSUE。frontmatter 未変更、判断は人間 / AI に委ねる:
+
+- `{path}` — reviewed_at: {YYYY-MM-DD}（{N} 日経過）
+  - 候補理由 A: 内容が triage 可能な具体性を持つ → `review/ai` 昇格候補
+  - 候補理由 B: 外部情報（公式 docs / issue tracker）待ち → `raw/ai` 継続 + 情報源を追記
+```
+
+該当ゼロの場合は以下 1 行で済ませる:
+
+```markdown
+## triage 推奨 raw/ai ISSUE
+
+該当なし（`raw/ai` で 14 日以上 triage されていない ISSUE はない）。
+```
 
 分布は `python scripts/issue_status.py {カテゴリ}` の出力を基にするか、スキャン結果から直接集計する。
 

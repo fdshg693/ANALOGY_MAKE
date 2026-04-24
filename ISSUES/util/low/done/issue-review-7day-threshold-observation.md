@@ -28,3 +28,7 @@ ver16.5 で `issue_review` SKILL に導入した「`reviewed_at` が 7 日以上
 
 - 初回発火が確認されれば `done/` へ移動
 - 2 版（ver16.7 相当）経過後も未発火 → 閾値調整の後続 ISSUE を起票
+
+## 完了記録（ver16.8）
+
+ver16.6 / ver16.7 / ver16.8（3 版）を経て §1.5 が一度も発火しなかった（ready/ai ISSUE の `reviewed_at` が 7 日に到達せず）。完了条件「2 版経過後も未発火 → 後続 ISSUE 起票」に到達。`issue-review-7day-threshold-adjustment.md` を新規起票した上で本 ISSUE を `done/` へ移動。

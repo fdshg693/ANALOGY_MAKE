@@ -44,8 +44,8 @@ IMPLEMENT.md §9 の 7 リスク項目について、本バージョン内での
 
 ## 更新が必要そうなドキュメントと更新内容の案
 
-- `/wrap_up` / `/write_current` 段階で `docs/util/MASTER_PLAN/PHASE7.1.md` L11 の §3 行を「実装済み（ver15.3）」に更新する必要あり（IMPLEMENT.md §6 参照）
-- 新フォーマット（仕分け方針 table）が全て SKILL 本文の `issue_plan/SKILL.md` に集約されたため、`CURRENT_skills.md` の `issue_plan` 節を ver15.3 完了時に更新する（`/write_current` タイミング）
+- ✅ `/wrap_up` で `docs/util/MASTER_PLAN/PHASE7.1.md` §3 行を「実装済み（ver15.3）」に更新済み（IMPLEMENT.md §6）
+- ⏭️ `CURRENT_skills.md` の `issue_plan` 節更新は `/write_current` タイミングに委ねる（仕分け方針 table の構造的変化を `write_current` で一括反映するほうが整合性が高い）
 
 ## 古くて削除が推奨されるコード・ドキュメントの提案
 

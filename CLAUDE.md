@@ -54,6 +54,8 @@
 - `REFACTOR.md` — リファクタリング計画
 - `IMPLEMENT.md` — 実装計画
 - `MEMO.md` — 実装メモ・残課題
+- `RESEARCH.md` — **research workflow のみ**: `/research_context` SKILL が生成する外部調査結果（4 節必須: `## 問い` / `## 収集した証拠` / `## 結論` / `## 未解決点`）
+- `EXPERIMENT.md` — **research workflow のみ**: `/experiment_test` SKILL が生成する実験結果（4 節必須: `## 検証した仮説` / `## 再現手順` / `## 結果` / `## 判断`）
 - `CURRENT.md` — **メジャーバージョンのみ**: コード現況の完全版（CLAUDE.md と重複しない内容のみ）
 - `CHANGES.md` — **マイナーバージョンのみ**: 前バージョンからの変更差分
 

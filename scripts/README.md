@@ -23,6 +23,8 @@
 | `claude_loop.yaml` | フルワークフロー（6 ステップ）定義 |
 | `claude_loop_quick.yaml` | 軽量ワークフロー（3 ステップ）定義 |
 | `claude_loop_issue_plan.yaml` | `/issue_plan` 単独実行用 YAML（`--workflow auto` の第 1 段でも使用） |
+| `claude_loop_scout.yaml` | `--workflow scout` で起動する能動 ISSUE 探索 YAML（1 ステップ、`auto` 非混入） |
+| `claude_loop_question.yaml` | `--workflow question` で起動する調査専用 YAML（1 ステップ、`auto` 非混入） |
 
 `claude_loop_lib/` のモジュール構成:
 
@@ -36,6 +38,7 @@
 | `git_utils.py` | `get_head_commit` / `check_uncommitted_changes` / `auto_commit_changes` |
 | `notify.py` | `notify_completion`（toast → beep フォールバック） |
 | `issues.py` | ISSUE frontmatter 共通ヘルパ（`VALID_STATUS` / `VALID_ASSIGNED` / `extract_status_assigned`）。`issue_status.py` と `issue_worklist.py` の共通基盤 |
+| `questions.py` | Question frontmatter 共通ヘルパ（`issues.py` の並列実装、`review` ステータスを持たない）。`question_status.py` と `question_worklist.py` の共通基盤 |
 
 ### ISSUES 管理ツール
 
@@ -43,6 +46,8 @@
 |---|---|
 | `issue_status.py` | `ISSUES/{category}/{high,medium,low}/*.md` の `status` / `assigned` 分布を表示する読み取り専用スクリプト |
 | `issue_worklist.py` | `assigned` / `status` で ISSUE を絞り込み、`text` / `json` で出力する読み取り専用スクリプト（詳細: [USAGE.md](USAGE.md)） |
+| `question_status.py` | `QUESTIONS/{category}/{high,medium,low}/*.md` の `status` / `assigned` 分布を表示する読み取り専用スクリプト |
+| `question_worklist.py` | `assigned` / `status` で Question を絞り込み、`text` / `json` で出力する読み取り専用スクリプト |
 
 ### 補助ツール
 
@@ -110,6 +115,24 @@ python scripts/claude_loop.py --workflow scout --category util
 - 起票件数・パス・重複でスキップした候補をサマリ出力
 
 **`--workflow auto` には自動混入しない**（明示起動のみ）。起票された ISSUE は次回 `/issue_plan` のレビューフェーズで既存の `review / ai` → `ready / ai` or `need_human_action / human` 遷移に乗る。推奨頻度は週次〜ループ節目程度（毎ループ実行しない）。
+
+## question（調査専用）
+
+`--workflow question` は調査専用の opt-in workflow（ver15.2 で追加）。`QUESTIONS/{カテゴリ}/{priority}/*.md` の `ready / ai` を 1 件選び、コードベース・ドキュメント・既存 ISSUE を読み解いて報告書を出力する。
+
+```bash
+python scripts/claude_loop.py --workflow question --category util
+```
+
+1 run で以下のみを実施して終了する:
+
+- `QUESTIONS/{カテゴリ}/{priority}/*.md` から最上位優先度の `ready / ai` を 1 件選定（0 件ならノーオペで終了）
+- 関連コード・docs・既存 ISSUE を調査し、`docs/{カテゴリ}/questions/{slug}.md` に固定 5 セクションの報告書を出力（**問い** / **確認した証拠** / **結論** / **不確実性** / **次アクション候補**）
+- 結論確定 → Question を `QUESTIONS/{カテゴリ}/done/` へ移動
+- 結論未確定（情報不足等） → Question を `need_human_action / human` に書き換え（`done/` 移動はしない）
+- 実装課題が明確化した場合は新規 ISSUE を `ISSUES/` に起票（実装はしない）
+
+**`--workflow auto` には自動混入しない**（明示起動のみ）。`QUESTIONS/` は本 workflow 専属の queue であり、`auto` / `full` / `quick` / `scout` は走査しない。詳細仕様（frontmatter / ライフサイクル）は [`QUESTIONS/README.md`](../QUESTIONS/README.md) を参照。
 
 ## ログの見方
 

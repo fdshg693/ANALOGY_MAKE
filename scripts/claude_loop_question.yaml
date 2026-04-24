@@ -1,6 +1,7 @@
-# NOTE: 1-step YAML for running /issue_plan alone. Also used as phase 1 of --workflow auto.
+# NOTE: --workflow question で起動する opt-in 調査専用 workflow。
+#       --workflow auto には自動混入しない（validation.py / claude_loop.py の auto 経路で選ばれない）。
 #       The `command` / `defaults` sections must stay in sync with claude_loop.yaml,
-#       claude_loop_quick.yaml, claude_loop_scout.yaml, and claude_loop_question.yaml.
+#       claude_loop_quick.yaml, claude_loop_issue_plan.yaml, and claude_loop_scout.yaml.
 #       Allowed `defaults`/`steps[]` override keys (string-typed):
 #         model, effort, system_prompt, append_system_prompt
 
@@ -16,7 +17,7 @@ defaults:
   effort: medium
 
 steps:
-  - name: issue_plan
-    prompt: /issue_plan
+  - name: question_research
+    prompt: /question_research
     model: opus
     effort: high

@@ -16,6 +16,7 @@ user-invocable: true
 
 - サブエージェントの利用は任意（小規模なので直接実装が効率的な場合が多い）
 - 実装中に `ROUGH_PLAN.md` の計画と異なる判断をした場合は、乖離の内容と理由を `MEMO.md` に記載すること
+- ワークフロー YAML（`scripts/claude_loop*.yaml`）を追加 / 削除する場合は、`.claude/rules/scripts.md` §3 / `scripts/USAGE.md` / `scripts/README.md` / 既存 YAML 先頭 NOTE の 4 箇所を同期更新すること
 
 ## 品質確認
 

@@ -410,6 +410,12 @@ class TestValidateStartupExistingYamls(unittest.TestCase):
         path = YAML_DIR / SCOUT_YAML_FILENAME
         validate_startup(path, args, YAML_DIR, DEFAULT_WORKING_DIRECTORY)
 
+    def test_question_yaml_passes(self) -> None:
+        from claude_loop_lib.workflow import QUESTION_YAML_FILENAME
+        args = _make_args(workflow="question")
+        path = YAML_DIR / QUESTION_YAML_FILENAME
+        validate_startup(path, args, YAML_DIR, DEFAULT_WORKING_DIRECTORY)
+
     def test_auto_validates_all_three_yamls(self) -> None:
         args = _make_args(workflow="auto")
         validate_startup("auto", args, YAML_DIR, DEFAULT_WORKING_DIRECTORY)

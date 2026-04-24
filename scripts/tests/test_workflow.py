@@ -13,7 +13,8 @@ from claude_loop_lib.workflow import (
     resolve_command_config,
     resolve_workflow_value,
     FULL_YAML_FILENAME, QUICK_YAML_FILENAME, ISSUE_PLAN_YAML_FILENAME,
-    SCOUT_YAML_FILENAME,
+    SCOUT_YAML_FILENAME, QUESTION_YAML_FILENAME,
+    RESERVED_WORKFLOW_VALUES,
     OVERRIDE_STRING_KEYS,
 )
 
@@ -157,6 +158,20 @@ class TestResolveWorkflowValue(unittest.TestCase):
         result = resolve_workflow_value("scout", self.yaml_dir)
         assert result == self.yaml_dir / SCOUT_YAML_FILENAME
 
+    def test_resolve_question_returns_question_yaml_path(self) -> None:
+        result = resolve_workflow_value("question", self.yaml_dir)
+        assert result == self.yaml_dir / QUESTION_YAML_FILENAME
+
+    def test_reserved_values_match_resolve_workflow_if_chain(self) -> None:
+        """Drift-guard: every RESERVED_WORKFLOW_VALUES entry must resolve cleanly."""
+        for value in RESERVED_WORKFLOW_VALUES:
+            with self.subTest(value=value):
+                result = resolve_workflow_value(value, self.yaml_dir)
+                assert result == "auto" or isinstance(result, Path), (
+                    f"reserved value {value!r} did not match a branch in "
+                    f"resolve_workflow_value (got {result!r})"
+                )
+
     def test_resolve_path_like_returns_path(self) -> None:
         result = resolve_workflow_value("/tmp/foo.yaml", self.yaml_dir)
         assert result == Path("/tmp/foo.yaml")
@@ -275,7 +290,7 @@ class TestGetStepsOverrideKeys(unittest.TestCase):
 
 
 class TestYamlSyncOverrideKeys(unittest.TestCase):
-    """Verify the 3 shipped workflow YAMLs only use allowed override keys."""
+    """Verify all shipped workflow YAMLs only use allowed override keys."""
 
     def _yaml_path(self, name: str) -> Path:
         return Path(__file__).resolve().parent.parent.parent / "scripts" / name
@@ -304,6 +319,13 @@ class TestYamlSyncOverrideKeys(unittest.TestCase):
 
     def test_scout_yaml_uses_only_allowed_keys(self) -> None:
         config = load_workflow(self._yaml_path(SCOUT_YAML_FILENAME))
+        steps = get_steps(config)
+        defaults = resolve_defaults(config)
+        assert isinstance(steps, list) and len(steps) > 0
+        assert isinstance(defaults, dict)
+
+    def test_question_yaml_uses_only_allowed_keys(self) -> None:
+        config = load_workflow(self._yaml_path(QUESTION_YAML_FILENAME))
         steps = get_steps(config)
         defaults = resolve_defaults(config)
         assert isinstance(steps, list) and len(steps) > 0

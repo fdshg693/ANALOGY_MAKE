@@ -13,8 +13,9 @@ FULL_YAML_FILENAME = "claude_loop.yaml"
 QUICK_YAML_FILENAME = "claude_loop_quick.yaml"
 ISSUE_PLAN_YAML_FILENAME = "claude_loop_issue_plan.yaml"
 SCOUT_YAML_FILENAME = "claude_loop_scout.yaml"
+QUESTION_YAML_FILENAME = "claude_loop_question.yaml"
 
-RESERVED_WORKFLOW_VALUES = ("auto", "full", "quick", "scout")
+RESERVED_WORKFLOW_VALUES = ("auto", "full", "quick", "scout", "question")
 
 OVERRIDE_STRING_KEYS: tuple[str, ...] = (
     "model",
@@ -36,6 +37,7 @@ def resolve_workflow_value(value: str, yaml_dir: Path) -> str | Path:
     - "full" -> Path(yaml_dir / FULL_YAML_FILENAME)
     - "quick" -> Path(yaml_dir / QUICK_YAML_FILENAME)
     - "scout" -> Path(yaml_dir / SCOUT_YAML_FILENAME)
+    - "question" -> Path(yaml_dir / QUESTION_YAML_FILENAME)
     - other (path-like) -> Path(value).expanduser()
 
     Reserved-value matching is exact and case-sensitive.
@@ -48,6 +50,8 @@ def resolve_workflow_value(value: str, yaml_dir: Path) -> str | Path:
         return yaml_dir / QUICK_YAML_FILENAME
     if value == "scout":
         return yaml_dir / SCOUT_YAML_FILENAME
+    if value == "question":
+        return yaml_dir / QUESTION_YAML_FILENAME
     return Path(value).expanduser()
 
 

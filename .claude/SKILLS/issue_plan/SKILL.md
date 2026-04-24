@@ -16,6 +16,9 @@ user-invocable: true
 
 ワークフロー先頭の共通ステップ。`/split_plan`・`/quick_plan` からプラン前半責務を切り出した位置づけ。
 
+> **注意**: `QUESTIONS/` 配下の Question は本 SKILL の対象外（`question_research` 専属 queue）。ISSUE レビュー・候補選定・plan 作成のいずれのステップでも `QUESTIONS/` を走査・変更しないこと。
+
+
 - 現状把握（`CURRENT.md` / 直前 `RETROSPECTIVE.md` / `MASTER_PLAN.md` を参照）
 - ISSUE レビューフェーズ（`review / ai` → `ready / ai` or `need_human_action / human`）
 - `status: ready` / `assigned: ai` の ISSUE 優先選定（優先度順 high → medium → low）

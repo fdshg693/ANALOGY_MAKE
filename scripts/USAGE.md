@@ -134,7 +134,7 @@ string 型のみ。`None` は未指定扱い、空文字列はエラー。
 
 **起動前 validation**: step 1 実行より前に、対象となる全 YAML（`--workflow auto` では 3 本すべて）に対して validation が走る。1 件でも error があれば exit code 2 で終了し、step は実行されない（`--dry-run` 時も実行される）。詳細は [`README.md` 「起動前 validation」節](README.md) を参照。
 
-`command` / `defaults` セクションは `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` / `claude_loop_scout.yaml` の 4 ファイルで同一内容を維持する必要がある（いずれかを変更した場合は必ず 4 ファイル全てを同期すること）。
+`command` / `defaults` セクションは `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` / `claude_loop_scout.yaml` / `claude_loop_question.yaml` の 5 ファイルで同一内容を維持する必要がある（いずれかを変更した場合は必ず 5 ファイル全てを同期すること）。
 
 ### サンプル YAML
 
@@ -142,6 +142,7 @@ string 型のみ。`None` は未指定扱い、空文字列はエラー。
 - 軽量: [`claude_loop_quick.yaml`](claude_loop_quick.yaml) — 3 ステップ（`issue_plan` → `quick_impl` → `quick_doc`）
 - issue_plan 単独: [`claude_loop_issue_plan.yaml`](claude_loop_issue_plan.yaml) — 1 ステップ（`issue_plan` のみ）。`--workflow auto` の第 1 段でも使用される
 - scout（能動探索、ver15.0 追加）: [`claude_loop_scout.yaml`](claude_loop_scout.yaml) — 1 ステップ（`issue_scout` のみ）。`--workflow scout` で明示起動。`--workflow auto` には自動混入しない
+- question（調査専用、ver15.2 追加）: [`claude_loop_question.yaml`](claude_loop_question.yaml) — 1 ステップ（`question_research` のみ）。`--workflow question` で明示起動。`QUESTIONS/` 専属で `--workflow auto` には自動混入しない
 
 ```yaml
 # claude_loop_scout.yaml 抜粋
@@ -162,6 +163,30 @@ steps:
     model: opus
     effort: high
 ```
+
+```yaml
+# claude_loop_question.yaml 抜粋
+command:
+  executable: claude
+  prompt_flag: -p
+  args:
+    - --dangerously-skip-permissions
+    - --disallowedTools "AskUserQuestion"
+
+defaults:
+  model: sonnet
+  effort: medium
+
+steps:
+  - name: question_research
+    prompt: /question_research
+    model: opus
+    effort: high
+```
+
+## QUESTIONS/ と ISSUES/ の境界
+
+実装依頼は `ISSUES/` に、調査依頼（成果物が報告書になるもの）は `QUESTIONS/` に置く。`QUESTIONS/` は `question` workflow（`--workflow question`）の専属 queue で、`auto` / `full` / `quick` / `scout` は走査しない。詳細仕様（frontmatter / ライフサイクル / 報告書配置）は [`QUESTIONS/README.md`](../QUESTIONS/README.md) を一次資料とする。
 
 ## フィードバック注入機能（詳細）
 

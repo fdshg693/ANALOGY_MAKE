@@ -284,6 +284,56 @@ class TestAutoWorkflowIntegration(unittest.TestCase):
         assert "--start 1" in str(cm.exception)
 
 
+class TestAutoLoopCountSemantics(unittest.TestCase):
+    """auto モードの loop カウントが phase2 のみを反映することを検証する。"""
+
+    def test_loops_completed_excludes_phase1(self) -> None:
+        """notify_completion に渡される loops_completed が phase2 のみを反映する。"""
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            (cwd / ".claude").mkdir(parents=True)
+            (cwd / ".claude" / "CURRENT_CATEGORY").write_text("util", encoding="utf-8")
+            vdir = cwd / "docs" / "util" / "ver1.0"
+            vdir.mkdir(parents=True)
+            rough_plan = vdir / "ROUGH_PLAN.md"
+            rough_plan.write_text("---\nworkflow: quick\n---\nbody\n", encoding="utf-8")
+
+            captured: list = []
+
+            def fake_run(cmd, **kwargs):
+                if cmd and cmd[0] == "git":
+                    return MagicMock(returncode=0, stdout="", stderr="")
+                return MagicMock(returncode=0)
+
+            argv = [
+                "claude_loop.py", "--workflow", "auto",
+                "--cwd", str(cwd),
+                "--no-log",
+            ]
+            with (
+                patch("sys.argv", argv),
+                patch("claude_loop.subprocess.run", side_effect=fake_run),
+                patch("claude_loop.check_uncommitted_changes", return_value=False),
+                patch("claude_loop.shutil.which", return_value="/usr/bin/claude"),
+                patch("claude_loop.validate_startup"),
+                patch("builtins.print"),
+                patch("claude_loop._find_latest_rough_plan", return_value=rough_plan),
+                patch("claude_loop.notify_completion", side_effect=lambda s: captured.append(s)),
+            ):
+                exit_code = claude_loop.main()
+
+            assert exit_code == 0
+            assert len(captured) == 1
+            summary = captured[0]
+            # Phase 1 (issue_plan): 1 step — its loop must NOT be counted.
+            # Phase 2 (quick, steps[1:]): runs 2 steps, completing 1 loop.
+            assert summary.loops_completed == 1, (
+                f"Expected 1 loop (phase2 only), got {summary.loops_completed}"
+            )
+            # Steps: 1 (phase1) + 2 (phase2 quick steps[1:]) = 3
+            assert summary.steps_completed == 3
+
+
 class TestStartupValidationIntegration(unittest.TestCase):
     """Smoke test: validate_startup failure must abort before _execute_yaml."""
 

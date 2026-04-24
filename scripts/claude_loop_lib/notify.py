@@ -12,7 +12,7 @@ from __future__ import annotations
 import subprocess
 from xml.sax.saxutils import escape as _xml_escape
 
-from claude_loop_lib.logging_utils import format_duration
+from claude_loop_lib.logging_utils import format_duration, write_stderr
 
 
 RESULT_SUCCESS = "success"
@@ -168,8 +168,8 @@ def _notify_toast(title: str, message: str) -> None:
 
 def _notify_beep(title: str, message: str) -> None:
     """Fallback: beep + console output."""
-    print("\a")
-    print(f"\n{'=' * 40}")
-    print(f"  {title}")
-    print(f"  {message}")
-    print(f"{'=' * 40}\n")
+    write_stderr("\a")
+    write_stderr(f"\n{'=' * 40}")
+    write_stderr(f"  {title}")
+    write_stderr(f"  {message}")
+    write_stderr(f"{'=' * 40}\n")

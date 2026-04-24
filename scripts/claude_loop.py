@@ -336,7 +336,11 @@ def _run_auto(
         start_index=0, continue_disabled=False,
         max_step_runs_override=1,
     )
-    combined.merge(phase1_stats)
+    # Aggregate phase1 steps only, not loops. Phase1 is a single-step gateway
+    # (issue_plan); its loop completion must not inflate the user-visible loop count.
+    combined.completed_steps += phase1_stats.completed_steps
+    if phase1_stats.failed_step is not None:
+        combined.failed_step = phase1_stats.failed_step
     combined.workflow_label = "auto"
     if exit_code != 0:
         return exit_code, combined

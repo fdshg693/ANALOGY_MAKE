@@ -1,6 +1,7 @@
 """Tests for scripts/claude_loop_lib/notify.py."""
 from __future__ import annotations
 
+import io
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -8,6 +9,7 @@ from . import _bootstrap  # noqa: F401  — must precede claude_loop_lib imports
 
 from claude_loop_lib.notify import (
     notify_completion,
+    _notify_beep,
     _notify_toast,
     RunSummary,
     RESULT_SUCCESS,
@@ -84,6 +86,22 @@ class TestRunSummaryMessage(unittest.TestCase):
         msg = s.message()
         assert "SIGINT" in msg
         assert "write_current" in msg
+
+
+class TestNotifyBeep(unittest.TestCase):
+    def test_beep_writes_title_and_message_to_stderr(self) -> None:
+        buf = io.StringIO()
+        with patch("sys.stderr", buf):
+            _notify_beep("Test Title", "Test Message")
+        output = buf.getvalue()
+        assert "Test Title" in output
+        assert "Test Message" in output
+
+    def test_beep_does_not_write_to_stdout(self) -> None:
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            _notify_beep("T", "M")
+        assert buf.getvalue() == ""
 
 
 class TestNotifyCompletion(unittest.TestCase):

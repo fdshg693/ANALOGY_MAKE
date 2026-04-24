@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -39,6 +40,11 @@ class TeeWriter:
             self.log_file.flush()
         process.wait()
         return process.returncode
+
+
+def write_stderr(line: str) -> None:
+    """Write a line to stderr. TeeWriter-independent; safe to call after workflow ends."""
+    print(line, file=sys.stderr)
 
 
 def print_step_header(current_index: int, total_steps: int, name: str) -> None:

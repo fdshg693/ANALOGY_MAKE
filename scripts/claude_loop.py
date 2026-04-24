@@ -7,6 +7,7 @@ import argparse
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -32,12 +33,44 @@ from claude_loop_lib.logging_utils import (
 from claude_loop_lib.git_utils import (
     get_head_commit, check_uncommitted_changes, auto_commit_changes,
 )
-from claude_loop_lib.notify import notify_completion
+from claude_loop_lib.notify import (
+    notify_completion,
+    RunSummary,
+    RESULT_SUCCESS, RESULT_FAILED, RESULT_INTERRUPTED,
+)
 from claude_loop_lib.validation import validate_startup
 
 
 YAML_DIR = Path(__file__).resolve().parent
 DEFAULT_WORKING_DIRECTORY = Path(__file__).resolve().parent.parent
+
+# Updated by the SIGTERM handler so the KeyboardInterrupt handler in main()
+# can distinguish SIGTERM from a plain Ctrl-C.
+_last_signal: str = "SIGINT"
+
+
+def _sigterm_to_keyboard_interrupt(signum: int, frame: Any) -> None:
+    global _last_signal
+    _last_signal = "SIGTERM"
+    raise KeyboardInterrupt
+
+
+class RunStats:
+    """Mutable counters aggregated during a run; converted to RunSummary in main()."""
+
+    def __init__(self) -> None:
+        self.completed_steps: int = 0
+        self.completed_loops: int = 0
+        self.failed_step: str | None = None
+        self.workflow_label: str | None = None
+
+    def merge(self, other: "RunStats") -> None:
+        self.completed_steps += other.completed_steps
+        self.completed_loops += other.completed_loops
+        if self.failed_step is None and other.failed_step is not None:
+            self.failed_step = other.failed_step
+        if other.workflow_label is not None:
+            self.workflow_label = other.workflow_label
 
 
 def positive_int(value: str) -> int:
@@ -202,6 +235,15 @@ def _compute_remaining_budget(args: argparse.Namespace, completed: int) -> int |
     return max(args.max_step_runs - completed, 0)
 
 
+def _workflow_label_fallback(resolved: str | Path) -> str:
+    """Derive a workflow label when RunStats has no label set."""
+    if resolved == "auto":
+        return "auto"
+    if isinstance(resolved, Path):
+        return resolved.stem
+    return str(resolved)
+
+
 def _resolve_uncommitted_status(args: argparse.Namespace, cwd: Path) -> str | None:
     if args.dry_run:
         return None
@@ -232,7 +274,7 @@ def _execute_yaml(
     continue_disabled: bool,
     max_step_runs_override: int | None = None,
     max_loops_override: int | None = None,
-) -> int:
+) -> tuple[int, RunStats]:
     """Load a single YAML and execute its steps with the given slicing."""
     config = load_workflow(yaml_path)
     steps = get_steps(config)
@@ -249,7 +291,9 @@ def _execute_yaml(
 
     if max_step_runs_override is not None:
         if max_step_runs_override <= 0:
-            return 0
+            stats = RunStats()
+            stats.workflow_label = yaml_path.stem
+            return 0, stats
         step_iter = iter_steps_for_step_limit(steps, start_index, max_step_runs_override)
     elif args.max_step_runs is not None:
         step_iter = iter_steps_for_step_limit(steps, start_index, args.max_step_runs)
@@ -257,12 +301,14 @@ def _execute_yaml(
         loops = max_loops_override if max_loops_override is not None else args.max_loops
         step_iter = iter_steps_for_loop_limit(steps, start_index, loops)
 
-    return _run_steps(
+    exit_code, stats = _run_steps(
         step_iter, steps, executable, prompt_flag, common_args,
         cwd, args.dry_run, tee, log_path,
         uncommitted_status, defaults,
         continue_disabled=continue_disabled,
     )
+    stats.workflow_label = yaml_path.stem
+    return exit_code, stats
 
 
 def _run_auto(
@@ -272,9 +318,11 @@ def _run_auto(
     tee: TeeWriter | None,
     log_path: Path | None,
     uncommitted_status: str | None,
-) -> int:
+) -> tuple[int, RunStats]:
     """Run --workflow auto: phase 1 = /issue_plan, phase 2 = full|quick steps[1:]."""
     phase1_yaml = yaml_dir / ISSUE_PLAN_YAML_FILENAME
+    combined = RunStats()
+    combined.workflow_label = "auto"
 
     # Record mtime of every existing ROUGH_PLAN.md before phase 1 runs.
     # Only files created after this snapshot (mtime > threshold) will be
@@ -283,13 +331,15 @@ def _run_auto(
     _, pre_existing = _rough_plan_candidates(cwd)
     mtime_threshold = max((p.stat().st_mtime for p in pre_existing), default=0.0)
 
-    exit_code = _execute_yaml(
+    exit_code, phase1_stats = _execute_yaml(
         phase1_yaml, args, cwd, tee, log_path, uncommitted_status,
         start_index=0, continue_disabled=False,
         max_step_runs_override=1,
     )
+    combined.merge(phase1_stats)
+    combined.workflow_label = "auto"
     if exit_code != 0:
-        return exit_code
+        return exit_code, combined
 
     def _out(line: str) -> None:
         if tee is not None:
@@ -300,7 +350,8 @@ def _run_auto(
     if args.dry_run:
         _out("")
         _out("--- auto: phase2 skipped (--dry-run) ---")
-        return 0
+        combined.workflow_label = "auto"
+        return 0, combined
 
     rough_plan = _find_latest_rough_plan(cwd, mtime_threshold=mtime_threshold)
     phase2_kind = _read_workflow_kind(rough_plan)
@@ -315,7 +366,8 @@ def _run_auto(
     steps2 = get_steps(config2)
     if len(steps2) < 2:
         _out(f"WARNING: phase2 YAML has {len(steps2)} step(s); nothing to run.")
-        return 0
+        combined.workflow_label = f"auto({phase2_kind})"
+        return 0, combined
     first_name = steps2[0].get("name")
     if first_name != "issue_plan":
         _out(
@@ -325,12 +377,15 @@ def _run_auto(
 
     remaining_budget = _compute_remaining_budget(args, completed=1)
 
-    return _execute_yaml(
+    exit_code, phase2_stats = _execute_yaml(
         phase2_yaml, args, cwd, tee, log_path,
         uncommitted_status=None,
         start_index=1, continue_disabled=False,
         max_step_runs_override=remaining_budget,
     )
+    combined.merge(phase2_stats)
+    combined.workflow_label = f"auto({phase2_kind})"
+    return exit_code, combined
 
 
 def main() -> int:
@@ -338,48 +393,84 @@ def main() -> int:
     resolved = resolve_workflow_value(args.workflow, YAML_DIR)
     validate_auto_args(resolved, args)
 
-    cwd = args.cwd.expanduser().resolve()
-    if not cwd.is_dir():
-        raise SystemExit(f"Working directory not found: {cwd}")
-
-    validate_startup(resolved, args, YAML_DIR, cwd)
-
-    uncommitted_status = _resolve_uncommitted_status(args, cwd)
-
-    enable_log = not args.no_log and not args.dry_run
-    log_yaml_for_naming = (
-        YAML_DIR / ISSUE_PLAN_YAML_FILENAME if resolved == "auto" else resolved
-    )
+    global _last_signal
+    _last_signal = "SIGINT"
+    try:
+        signal.signal(signal.SIGTERM, _sigterm_to_keyboard_interrupt)
+    except (ValueError, OSError):
+        pass  # best-effort on platforms where SIGTERM handlers cannot be set
 
     workflow_start = time.monotonic()
+    result = RESULT_SUCCESS
+    exit_code = 0
+    interrupt_reason: str | None = None
+    stats = RunStats()
 
-    def _run_selected(tee: TeeWriter | None, log_path: Path | None) -> int:
-        if resolved == "auto":
-            return _run_auto(args, cwd, YAML_DIR, tee, log_path, uncommitted_status)
-        if args.start < 1:
-            raise SystemExit(f"--start must be >= 1. Received: {args.start}")
-        return _execute_yaml(
-            resolved, args, cwd, tee, log_path, uncommitted_status,
-            start_index=args.start - 1,
-            continue_disabled=args.start > 1,
+    try:
+        cwd = args.cwd.expanduser().resolve()
+        if not cwd.is_dir():
+            raise SystemExit(f"Working directory not found: {cwd}")
+
+        validate_startup(resolved, args, YAML_DIR, cwd)
+
+        uncommitted_status = _resolve_uncommitted_status(args, cwd)
+
+        enable_log = not args.no_log and not args.dry_run
+        log_yaml_for_naming = (
+            YAML_DIR / ISSUE_PLAN_YAML_FILENAME if resolved == "auto" else resolved
         )
 
-    if enable_log:
-        log_path = create_log_path(args.log_dir, log_yaml_for_naming)
-        with open(log_path, "w", encoding="utf-8") as log_file:
-            tee = TeeWriter(log_file)
-            exit_code = _run_selected(tee, log_path)
-    else:
-        exit_code = _run_selected(None, None)
+        def _run_selected(tee: TeeWriter | None, log_path: Path | None) -> tuple[int, RunStats]:
+            if resolved == "auto":
+                return _run_auto(args, cwd, YAML_DIR, tee, log_path, uncommitted_status)
+            if args.start < 1:
+                raise SystemExit(f"--start must be >= 1. Received: {args.start}")
+            return _execute_yaml(
+                resolved, args, cwd, tee, log_path, uncommitted_status,
+                start_index=args.start - 1,
+                continue_disabled=args.start > 1,
+            )
 
-    total_duration = time.monotonic() - workflow_start
-
-    if not args.no_notify and not args.dry_run:
-        duration_str = format_duration(total_duration)
-        if exit_code == 0:
-            notify_completion("Workflow Complete", f"All steps succeeded ({duration_str})")
+        if enable_log:
+            log_path = create_log_path(args.log_dir, log_yaml_for_naming)
+            with open(log_path, "w", encoding="utf-8") as log_file:
+                tee = TeeWriter(log_file)
+                exit_code, stats = _run_selected(tee, log_path)
         else:
-            notify_completion("Workflow Failed", f"Exit code: {exit_code} ({duration_str})")
+            exit_code, stats = _run_selected(None, None)
+
+        if exit_code != 0:
+            result = RESULT_FAILED
+    except KeyboardInterrupt:
+        result = RESULT_INTERRUPTED
+        interrupt_reason = _last_signal
+        exit_code = 130
+    except SystemExit as e:
+        code = e.code
+        if isinstance(code, int):
+            exit_code = code
+        elif code is None:
+            exit_code = 0
+        else:
+            exit_code = 1
+        if exit_code != 0:
+            result = RESULT_FAILED
+        raise
+    finally:
+        if not args.no_notify and not args.dry_run:
+            total_duration = time.monotonic() - workflow_start
+            label = stats.workflow_label or _workflow_label_fallback(resolved)
+            summary = RunSummary(
+                workflow_label=label,
+                result=result,
+                duration_seconds=total_duration,
+                loops_completed=stats.completed_loops,
+                steps_completed=stats.completed_steps,
+                exit_code=exit_code if result != RESULT_SUCCESS else None,
+                failed_step=stats.failed_step,
+                interrupt_reason=interrupt_reason if result == RESULT_INTERRUPTED else None,
+            )
+            notify_completion(summary)
 
     return exit_code
 
@@ -397,13 +488,13 @@ def _run_steps(
     uncommitted_status: str | None = None,
     defaults: dict[str, str] | None = None,
     continue_disabled: bool = False,
-) -> int:
+) -> tuple[int, RunStats]:
     """Execute workflow steps with optional logging via TeeWriter."""
     total_steps = len(steps)
     workflow_start = time.monotonic()
     start_time = datetime.now()
     start_commit = get_head_commit(cwd)
-    completed_count = 0
+    stats = RunStats()
     feedbacks_dir = cwd / "FEEDBACKS"
     previous_session_id: str | None = None
     continue_warned = False
@@ -543,6 +634,7 @@ def _run_steps(
 
         # --- Handle failure ---
         if exit_code != 0:
+            stats.failed_step = step["name"]
             fail_msg = f"Step failed with exit code {exit_code}: {step['name']}"
             if tee is not None:
                 # Write workflow footer on failure
@@ -559,17 +651,19 @@ def _run_steps(
                 _out(f"Last session (full): {session_id}")
                 _out("=====================================")
             print(fail_msg, file=sys.stderr)
-            return exit_code
+            return exit_code, stats
 
         if feedback_files:
             consume_feedbacks(feedback_files, feedbacks_dir / "done")
 
         previous_session_id = session_id
-        completed_count += 1
+        stats.completed_steps += 1
+        if absolute_index == total_steps:
+            stats.completed_loops += 1
 
     if not ran_any_step:
         _out("No steps to run.")
-        return 0
+        return 0, stats
 
     # --- Workflow footer ---
     if tee is not None:
@@ -582,14 +676,14 @@ def _run_steps(
         if end_commit:
             _out(f"Commit (end): {end_commit}")
         _out(f"Duration: {format_duration(total_duration)}")
-        _out(f"Result: SUCCESS ({completed_count}/{completed_count} steps completed)")
+        _out(f"Result: SUCCESS ({stats.completed_steps}/{stats.completed_steps} steps completed)")
         if previous_session_id:
             _out(f"Last session (full): {previous_session_id}")
         _out("=====================================")
     else:
         print("\nWorkflow completed.")
 
-    return 0
+    return 0, stats
 
 
 if __name__ == "__main__":

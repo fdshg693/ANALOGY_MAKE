@@ -85,7 +85,7 @@ class TestRunStepsSessionTracking(unittest.TestCase):
         steps = self._make_steps({}, {})
         step_iter = iter([(steps[0], 1), (steps[1], 2)])
 
-        exit_code = _run_steps(
+        exit_code, _ = _run_steps(
             step_iter, steps, "claude", "-p", [],
             cwd=Path("."), dry_run=False, tee=None, log_path=None,
         )
@@ -108,7 +108,7 @@ class TestRunStepsSessionTracking(unittest.TestCase):
         _run_steps(
             step_iter, steps, "claude", "-p", [],
             cwd=Path("."), dry_run=False, tee=None, log_path=None,
-        )
+        )  # returns (int, RunStats); unpacking not needed here
         commands = self._captured_commands(mock_run)
         assert "-r" in commands[1]
         assert commands[1][commands[1].index("-r") + 1] == "uuid-1"

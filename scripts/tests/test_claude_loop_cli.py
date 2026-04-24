@@ -10,10 +10,15 @@ from unittest.mock import patch, MagicMock
 
 from . import _bootstrap  # noqa: F401  — must precede claude_loop imports
 
+import claude_loop
 from claude_loop import (
     parse_args,
     validate_auto_args, _find_latest_rough_plan, _read_workflow_kind,
     _compute_remaining_budget, _version_key,
+    RunStats,
+)
+from claude_loop_lib.notify import (
+    RESULT_SUCCESS, RESULT_FAILED, RESULT_INTERRUPTED,
 )
 
 
@@ -283,6 +288,188 @@ class TestFindLatestRoughPlan(unittest.TestCase):
             assert _version_key(paths[0]) == (9, 1)
             assert _version_key(paths[1]) == (10, 0)
             assert _version_key(paths[1]) > _version_key(paths[0])
+
+
+class TestMainNotifyRunSummary(unittest.TestCase):
+    """Tests for main() notify_completion call paths (run-summary integration)."""
+
+    def _base_argv(self, *extra: str) -> list[str]:
+        return [
+            "claude_loop.py",
+            "--workflow", "full",
+            "--cwd", ".",
+            "--no-log",
+            *extra,
+        ]
+
+    def _common_patches(self, run_selected_side_effect):
+        """Return a list of context managers to apply around main().
+
+        ``run_selected_side_effect`` is a callable `(tee, log_path) -> (int, RunStats)`
+        or an exception class/instance to raise.
+        """
+        def fake_run_selected(self2_tee_or_args, *a, **kw):
+            # When monkey-patching _execute_yaml/_run_auto we instead replace them.
+            raise AssertionError("should not be called directly")
+
+        return [
+            patch("claude_loop.validate_startup"),
+            patch("claude_loop.check_uncommitted_changes", return_value=False),
+            patch("claude_loop.resolve_workflow_value", return_value=Path("wf.yaml")),
+            patch("pathlib.Path.is_dir", return_value=True),
+        ]
+
+    def _run_main_with_run_selected(
+        self,
+        side_effect,
+        argv_extra: list[str] | None = None,
+    ):
+        """Run claude_loop.main() with _execute_yaml mocked to produce the given side effect."""
+        argv_extra = argv_extra or []
+        argv = self._base_argv(*argv_extra)
+
+        if isinstance(side_effect, tuple):
+            exec_return = side_effect
+            exec_side_effect = None
+        else:
+            exec_return = None
+            exec_side_effect = side_effect
+
+        with (
+            patch("sys.argv", argv),
+            patch("claude_loop.validate_startup"),
+            patch("claude_loop.check_uncommitted_changes", return_value=False),
+            patch("pathlib.Path.is_dir", return_value=True),
+            patch("claude_loop.notify_completion") as mock_notify,
+            patch("claude_loop._execute_yaml") as mock_exec,
+        ):
+            if exec_side_effect is not None:
+                mock_exec.side_effect = exec_side_effect
+            else:
+                mock_exec.return_value = exec_return
+            try:
+                exit_code = claude_loop.main()
+                raised: BaseException | None = None
+            except SystemExit as e:
+                exit_code = e.code if isinstance(e.code, int) else 1
+                raised = e
+            except BaseException as e:  # pragma: no cover
+                raised = e
+                exit_code = None
+
+        return exit_code, mock_notify, raised
+
+    def test_main_emits_summary_on_success(self) -> None:
+        stats = RunStats()
+        stats.completed_steps = 6
+        stats.completed_loops = 1
+        stats.workflow_label = "claude_loop"
+        exit_code, mock_notify, _ = self._run_main_with_run_selected((0, stats))
+        assert exit_code == 0
+        mock_notify.assert_called_once()
+        summary = mock_notify.call_args[0][0]
+        assert summary.result == RESULT_SUCCESS
+        assert summary.workflow_label == "claude_loop"
+        assert summary.loops_completed == 1
+        assert summary.steps_completed == 6
+        assert summary.exit_code is None
+
+    def test_main_emits_summary_on_failure(self) -> None:
+        stats = RunStats()
+        stats.completed_steps = 3
+        stats.completed_loops = 0
+        stats.failed_step = "imple_plan"
+        stats.workflow_label = "claude_loop"
+        exit_code, mock_notify, _ = self._run_main_with_run_selected((1, stats))
+        assert exit_code == 1
+        summary = mock_notify.call_args[0][0]
+        assert summary.result == RESULT_FAILED
+        assert summary.failed_step == "imple_plan"
+        assert summary.exit_code == 1
+
+    def test_main_emits_summary_on_keyboard_interrupt(self) -> None:
+        def raise_ki(*a, **kw):
+            # Ensure _last_signal reflects SIGINT default
+            raise KeyboardInterrupt
+
+        exit_code, mock_notify, raised = self._run_main_with_run_selected(raise_ki)
+        summary = mock_notify.call_args[0][0]
+        assert summary.result == RESULT_INTERRUPTED
+        assert summary.interrupt_reason == "SIGINT"
+        # KeyboardInterrupt is caught in main() — no re-raise; exit_code == 130
+        assert exit_code == 130
+
+    def test_main_emits_summary_on_sigterm(self) -> None:
+        """Simulate SIGTERM by directly invoking the handler from inside the mock."""
+        def raise_via_handler(*a, **kw):
+            claude_loop._sigterm_to_keyboard_interrupt(15, None)
+
+        exit_code, mock_notify, raised = self._run_main_with_run_selected(raise_via_handler)
+        summary = mock_notify.call_args[0][0]
+        assert summary.result == RESULT_INTERRUPTED
+        assert summary.interrupt_reason == "SIGTERM"
+        assert exit_code == 130
+
+    def test_main_no_notify_flag_suppresses(self) -> None:
+        stats = RunStats()
+        stats.workflow_label = "claude_loop"
+        exit_code, mock_notify, _ = self._run_main_with_run_selected(
+            (0, stats), argv_extra=["--no-notify"]
+        )
+        assert exit_code == 0
+        mock_notify.assert_not_called()
+
+    def test_main_dry_run_suppresses(self) -> None:
+        stats = RunStats()
+        stats.workflow_label = "claude_loop"
+        exit_code, mock_notify, _ = self._run_main_with_run_selected(
+            (0, stats), argv_extra=["--dry-run"]
+        )
+        assert exit_code == 0
+        mock_notify.assert_not_called()
+
+    def test_main_no_notify_suppresses_on_failure(self) -> None:
+        stats = RunStats()
+        stats.failed_step = "x"
+        exit_code, mock_notify, _ = self._run_main_with_run_selected(
+            (1, stats), argv_extra=["--no-notify"]
+        )
+        assert exit_code == 1
+        mock_notify.assert_not_called()
+
+    def test_main_no_notify_suppresses_on_interrupt(self) -> None:
+        def raise_ki(*a, **kw):
+            raise KeyboardInterrupt
+
+        exit_code, mock_notify, _ = self._run_main_with_run_selected(
+            raise_ki, argv_extra=["--no-notify"]
+        )
+        assert exit_code == 130
+        mock_notify.assert_not_called()
+
+
+class TestSigtermHandler(unittest.TestCase):
+    """Unit test for _sigterm_to_keyboard_interrupt() — no signal.raise_signal."""
+
+    def setUp(self) -> None:
+        self._original_last_signal = claude_loop._last_signal
+
+    def tearDown(self) -> None:
+        claude_loop._last_signal = self._original_last_signal
+
+    def test_handler_sets_last_signal_and_raises(self) -> None:
+        claude_loop._last_signal = "SIGINT"
+        with self.assertRaises(KeyboardInterrupt):
+            claude_loop._sigterm_to_keyboard_interrupt(15, None)
+        assert claude_loop._last_signal == "SIGTERM"
+
+
+class TestWorkflowLabelFallback(unittest.TestCase):
+    def test_auto_label(self) -> None:
+        assert claude_loop._workflow_label_fallback("auto") == "auto"
+
+    def test_path_label(self) -> None:
+        assert claude_loop._workflow_label_fallback(Path("claude_loop_quick.yaml")) == "claude_loop_quick"
 
 
 class TestComputeRemainingBudget(unittest.TestCase):

@@ -37,7 +37,7 @@ python scripts/issue_worklist.py --category app
 | `--dry-run` | - | flag | `False` | コマンド確認のみ（実行・ログ・通知なし） |
 | `--log-dir` | - | Path | `logs/workflow/` | ログファイル出力先ディレクトリ |
 | `--no-log` | - | flag | `False` | ログファイル出力を無効化 |
-| `--no-notify` | - | flag | `False` | ワークフロー完了通知を無効化 |
+| `--no-notify` | - | flag | `False` | ワークフロー完了通知を無効化（run 単位で 1 回発火、中断時も含め抑止対象） |
 | `--auto-commit-before` | - | flag | `False` | ワークフロー開始前に未コミット変更を自動コミット |
 | `--max-loops` | - | int (>=1) | `1` | 最大ワークフローループ回数（`--max-step-runs` と排他） |
 | `--max-step-runs` | - | int (>=1) | - | 最大ステップ実行回数（`--max-loops` と排他） |
@@ -219,6 +219,21 @@ step: [split_plan, imple_plan]
 ### 異常終了時のふるまい
 
 ステップが非ゼロ exit / 例外 / Ctrl-C で終了した場合、`consume_feedbacks()` は呼ばれず、FEEDBACK は `FEEDBACKS/` 直下に残る。次回 run で再度読み込まれるため、retry 時に同じフィードバックが再適用される挙動になる（仕様）。
+
+## 完了通知（詳細）
+
+通知は workflow 全体の終了時に **1 回のみ** 発火する（ver15.4〜）。`--max-loops N` で複数ループ回しても途中では発火しない。成功 / 失敗 / 中断（Ctrl+C / SIGTERM）のいずれの経路でも `main()` の `finally` 経路に収束する。本文フォーマット:
+
+| 結果 | タイトル | 本文例 |
+|---|---|---|
+| success | `Workflow Complete` | `claude_loop / 1 loop / 6 steps / 14m 32s` |
+| failed  | `Workflow Failed`   | `failed at imple_plan (exit 1) / claude_loop / 1 loop / 3 steps / 4m 11s` |
+| interrupted | `Workflow Interrupted` | `interrupted (SIGINT) at write_current / claude_loop / 1 loop / 5 steps / 7m 02s` |
+
+- `--no-notify` は成功/失敗/中断いずれの経路でも通知を抑止する
+- `--dry-run` 時も通知は発火しない
+- `--workflow auto` の場合、workflow ラベルは `auto(full)` / `auto(quick)` の形で phase2 種別を含む
+- Windows では `scenario='reminder'` + dismiss アクション構成で Action Center に残る挙動を狙う。OS が拒否した場合は `duration='long'` → beep + console に段階的フォールバック
 
 ## ログフォーマット（詳細）
 

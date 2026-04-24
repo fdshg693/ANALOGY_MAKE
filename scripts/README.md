@@ -36,7 +36,7 @@
 | `commands.py` | `build_command`、ステップイテレータ（`iter_steps_for_loop_limit` / `iter_steps_for_step_limit`） |
 | `logging_utils.py` | `TeeWriter`、`create_log_path`、`print_step_header`、`format_duration` |
 | `git_utils.py` | `get_head_commit` / `check_uncommitted_changes` / `auto_commit_changes` |
-| `notify.py` | `notify_completion`（toast → beep フォールバック） |
+| `notify.py` | `notify_completion(RunSummary)`（toast → beep フォールバック、run サマリ化・永続表示寄り） |
 | `issues.py` | ISSUE frontmatter 共通ヘルパ（`VALID_STATUS` / `VALID_ASSIGNED` / `extract_status_assigned`）。`issue_status.py` と `issue_worklist.py` の共通基盤 |
 | `questions.py` | Question frontmatter 共通ヘルパ（`issues.py` の並列実装、`review` ステータスを持たない）。`question_status.py` と `question_worklist.py` の共通基盤 |
 
@@ -145,6 +145,16 @@ python scripts/claude_loop.py --workflow question --category util
 **繰り返すエラーの切り分け**: `continue: true` のステップは前ステップのセッションを引き継ぐため、前ステップで混乱があると後続でも連鎖することがある。その場合は `--start N` で問題ステップから単独再実行する。
 
 詳細フォーマット仕様は [`USAGE.md`](USAGE.md) の「ログフォーマット（詳細）」を参照。
+
+## 完了通知（run 単位）
+
+ver15.4 から、通知は **workflow 全体の終了時に 1 回だけ** 発火する。`--max-loops N` で複数ループ回しても通知は最後に 1 回のみ。通知タイミングは以下の 3 経路に一貫:
+
+- 正常終了: 「Workflow Complete / {label} / {loops} loops / {steps} steps / {duration}」
+- step 失敗: 「Workflow Failed / failed at {step} (exit {code}) / ...」
+- 中断（Ctrl+C / SIGTERM）: 「Workflow Interrupted / interrupted ({reason}) at {step} / ...」
+
+Windows トーストは `scenario='reminder'` + dismiss ボタン構成で Action Center に残ることを狙い、OS がこれを拒否した場合は `duration='long'` にフォールバックする（さらに失敗すると beep + console 出力）。`--no-notify` / `--dry-run` は通知を抑止する（成功/失敗/中断のいずれの経路でも）。
 
 ## フィードバック注入機能
 

@@ -50,6 +50,7 @@
 
 各バージョンフォルダ `docs/{category}/ver{X.Y}/` の構成:
 - `ROUGH_PLAN.md` — タスク概要
+- `PLAN_HANDOFF.md` — 選定理由・除外理由・後続 step への注意点（handoff 情報ゼロなら省略可）
 - `REFACTOR.md` — リファクタリング計画
 - `IMPLEMENT.md` — 実装計画
 - `MEMO.md` — 実装メモ・残課題

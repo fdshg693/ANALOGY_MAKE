@@ -12,7 +12,7 @@ user-invocable: true
 
 ## 実装
 
-最新バージョンフォルダ配下の `ROUGH_PLAN.md` の変更方針に基づいて実装を行う。
+最新バージョンフォルダ配下の `ROUGH_PLAN.md`（変更方針）と `PLAN_HANDOFF.md`（後続 step への注意点・関連 ISSUE パス）に基づいて実装を行う。`PLAN_HANDOFF.md` が存在しない場合（`/issue_plan` が handoff 情報ゼロと判定し省略したケース）は `ROUGH_PLAN.md` のみで進めてよい。
 
 - サブエージェントの利用は任意（小規模なので直接実装が効率的な場合が多い）
 - 実装中に `ROUGH_PLAN.md` の計画と異なる判断をした場合は、乖離の内容と理由を `MEMO.md` に記載すること

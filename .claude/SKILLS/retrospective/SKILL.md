@@ -32,8 +32,8 @@ user-invocable: true
 
 各バージョンは以下の6ステップで作成される（フルワークフロー）。本スキルはステップ6に相当する:
 
-1. `/issue_plan` — 現状把握・ISSUE レビュー・`ROUGH_PLAN.md` 作成（frontmatter に `workflow: quick | full` / `source: issues | master_plan` を記録）を行った
-2. `/split_plan` — `ROUGH_PLAN.md` を受けて `REFACTOR.md` ・ `IMPLEMENT.md` を作成し、plan_review_agent で実装計画の review を行った
+1. `/issue_plan` — 現状把握・ISSUE レビュー・`ROUGH_PLAN.md` と `PLAN_HANDOFF.md` 作成（frontmatter に `workflow: quick | full` / `source: issues | master_plan` を記録）を行った
+2. `/split_plan` — `ROUGH_PLAN.md` と `PLAN_HANDOFF.md` を受けて `REFACTOR.md` ・ `IMPLEMENT.md` を作成し、plan_review_agent で実装計画の review を行った
 3. `/imple_plan` — 計画に基づいて実装し、`MEMO.md` に実装メモを記載した
 4. `/wrap_up` — `MEMO.md` の各項目に対応し、細かい改善を行った
 5. `/write_current` — `CURRENT.md` ・ `CLAUDE.md` の作成・更新を行った
@@ -118,6 +118,8 @@ user-invocable: true
 ## 4.5 次ループへの FEEDBACK handoff
 
 retrospective の成果のうち「次ループで 1 回だけ読ませたい補助線」を `FEEDBACKS/<filename>.md` に書き出し、次ループの `/issue_plan` に引き継ぐ。恒久メモリではない点に注意する（書き出された FEEDBACK は次ループで 1 回だけ消費され、その後 `FEEDBACKS/done/` へ退避される。§4 運用ルールに従う）。
+
+（`PLAN_HANDOFF.md` は plan 段階の判断ログとして同バージョン内に残り、本節 `FEEDBACKS/handoff_*.md` は次ループへの 1 回限りの補助入力。役割が異なるため二重管理にはならない）
 
 ### 目的
 

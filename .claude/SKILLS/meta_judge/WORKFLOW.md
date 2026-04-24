@@ -5,8 +5,8 @@
 `.claude\SKILLS` 配下のSKILLを使って順番に実装している
 現在までに出来ているバージョンを見て、出来を評価して（たくさんのバージョンがある場合は、最新のバージョンを中心に見ればよい。昔のバージョンは現在と異なるフローで実装されている可能性があるため）
 
-1. `/issue_plan` — 現状把握 + ISSUE レビュー + ISSUE/MASTER_PLAN 選定 + ROUGH_PLAN.md 作成 + workflow 判定
-2. `/split_plan` — ROUGH_PLAN.md を起点に REFACTOR.md / IMPLEMENT.md 作成 + plan_review_agent で review
+1. `/issue_plan` — 現状把握 + ISSUE レビュー + ISSUE/MASTER_PLAN 選定 + ROUGH_PLAN.md と PLAN_HANDOFF.md 作成 + workflow 判定
+2. `/split_plan` — ROUGH_PLAN.md と PLAN_HANDOFF.md を起点に REFACTOR.md / IMPLEMENT.md 作成 + plan_review_agent で review
 3. `/imple_plan` — 計画に基づく実装
 4. `/wrap_up` — MEMOに基づく細かい改善・整理
 5. `/write_current` — ドキュメントの更新
@@ -16,7 +16,7 @@
 
 小規模タスク向けの 3 ステップワークフロー。`claude_loop_quick.yaml` で定義。
 
-1. `/issue_plan` — 現状把握 + ISSUE レビュー + ISSUE 選定 + ROUGH_PLAN.md 作成（workflow=quick で frontmatter を付ける）
+1. `/issue_plan` — 現状把握 + ISSUE レビュー + ISSUE 選定 + ROUGH_PLAN.md と（必要なら）PLAN_HANDOFF.md 作成（workflow=quick で frontmatter を付ける）
 2. `/quick_impl` — 実装 + MEMO対応 + typecheck + コミット
 3. `/quick_doc` — CHANGES.md 作成 + CLAUDE.md 更新確認 + ISSUES 整理 + コミット
 
@@ -45,5 +45,5 @@
 ### 保守上の注意
 
 - `claude_loop.yaml` / `claude_loop_quick.yaml` / `claude_loop_issue_plan.yaml` の `command` / `defaults` セクションは同一内容で維持する（いずれかを変更した場合は必ず 3 ファイル全てを同期すること）
-- 両ワークフローの 1 ステップ目は `/issue_plan` で共通。ROUGH_PLAN.md 冒頭の `workflow: full | quick` / `source: issues | master_plan` で後続分岐の材料が残る（`--workflow auto` 分岐ロジックは ver9.0 で実装済み）
+- 両ワークフローの 1 ステップ目は `/issue_plan` で共通。ROUGH_PLAN.md 冒頭の `workflow: full | quick` / `source: issues | master_plan` で後続分岐の材料が残る（`--workflow auto` 分岐ロジックは ver9.0 で実装済み）。`workflow:` / `source:` の one source of truth は `ROUGH_PLAN.md` 側に保ち、`PLAN_HANDOFF.md` 側は同値を冗長保持する
 - `--workflow auto`（新デフォルト）は `claude_loop_issue_plan.yaml` で `/issue_plan` を先行実行し、出力された最新 `ROUGH_PLAN.md` の frontmatter `workflow:` に応じて `claude_loop.yaml` / `claude_loop_quick.yaml` の `steps[1:]` を実行する。`workflow:` 未記載・不正値時は `full` にフォールバックして警告を出す

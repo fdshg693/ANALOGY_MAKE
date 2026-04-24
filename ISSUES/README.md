@@ -95,6 +95,18 @@ AI は `raw | ready | need_human_action` のいずれかのみを付けます。
   - 修正方向が `IMPLEMENT.md` なしで 1 段落で書ける
 - 起票件数は 1 run あたり最大 3 件（価値ある候補がなければゼロ起票で終了）
 
+### 長期持ち越し再判定（ver16.5 追加）
+
+`status: ready / ai` のまま長期間（既定 7 日）着手されない ISSUE を `issue_review` SKILL が「再判定推奨」として検出します。検出条件と挙動:
+
+- 検出条件: `reviewed_at` フィールドが本日から 7 日以上前
+- 検出時の挙動: `/issue_plan` の出力に「## 再判定推奨 ISSUE」ブロックが追加される。frontmatter は書き換えられない
+- 想定される人間 / AI の対応:
+  - 実機検証が必要なものは手動で `need_human_action / human` に降格する
+  - 前提条件待ち（他カテゴリでの `review/ai` 発生待ち等）のものは `ready/ai` を維持しつつ `## AI からの依頼` に補足を追記する
+  - 状況が変わって再判断したい場合は手動で `review/ai` に戻し、次回 `/issue_plan` で再評価させる
+- 詳細仕様は `.claude/skills/issue_review/SKILL.md` §1.5 / §5 を参照
+
 ## 人間への依頼セクション
 
 `need_human_action` の ISSUE は、本文末尾に以下のセクションが追記されます。

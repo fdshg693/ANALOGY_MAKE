@@ -154,6 +154,10 @@ util カテゴリの `status × assigned` 分布（`python scripts/issue_status.
 
 メジャー昇格（ver16.0）は PHASE7.1 全節完了時点で PHASE8.0 骨子の要否を判定する。本バージョン時点では時期尚早。
 
+## 事前リファクタリング要否
+
+**事前リファクタリング不要**。§2 は add-only（新 YAML / 新 SKILL / 新 Python スクリプト / 新 `QUESTIONS/` ディレクトリの追加）で、既存 `issue_status.py` / `issue_worklist.py` / `claude_loop_lib/issues.py` の構造に触らず、`question_status.py` / `question_worklist.py` / `claude_loop_lib/questions.py` として並列に追加するため（ver15.0 scout 実装と同型の add-only 方針を継承）。`claude_loop.py` / `workflow.py` への編集も ver15.0 で scout を追加したときと同じ経路への分岐追加のみで、リファクタ対象となる構造的な負債は現時点で検出できない。
+
 ## 後続 `/split_plan` への引き継ぎメモ
 
 - **主入力**: `docs/util/MASTER_PLAN/PHASE7.1.md` §2（役割 / 期待挙動 / 完了条件が体系的に定義されている）。本 `ROUGH_PLAN.md` は選定経緯と除外理由の提供に留め、実装方式（API 設計・関数シグネチャ・データ構造）は `/split_plan` 側で決定すること。
